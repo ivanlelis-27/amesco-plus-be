@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AmescoAPI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4506fefe3a055baad418711835199e794c64222a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+64ca18eafc4e200f2495693a086a7ce7a303f2af")]
 [assembly: System.Reflection.AssemblyProductAttribute("AmescoAPI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AmescoAPI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

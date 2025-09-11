@@ -3,8 +3,11 @@ using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using AmescoAPI.Data;
 using AmescoAPI.Models;
+using AmescoAPI.Models.Auth;
+using AmescoAPI.Services;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace AmescoAPI.Controllers
 {
@@ -13,16 +16,18 @@ namespace AmescoAPI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IEmailService _emailService; // << inject email service
 
-        public AuthController(AppDbContext context)
+        public AuthController(AppDbContext context, IEmailService emailService)
         {
             _context = context;
+            _emailService = emailService;
         }
 
+        // ✅ Register
         [HttpPost("register")]
         public IActionResult Register([FromBody] RegisterRequest request)
         {
-
             if (!isValidEmail(request.Email))
                 return BadRequest("Invalid email format.");
 
@@ -48,17 +53,67 @@ namespace AmescoAPI.Controllers
             return Ok(new { message = "Registration successful!" });
         }
 
+        [HttpPost("login")]
+        public IActionResult Login([FromBody] LoginRequest request)
+        {
+            var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
+            if (user == null) return NotFound("User not found.");
+
+            if (user.PasswordHash != HashPassword(request.Password))
+                return BadRequest("Invalid password.");
+
+            return Ok(new { message = "Login successful!" });
+        }
+
+        // ✅ Forgot Password → sends TEMPORARY password
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
+            if (user == null) return NotFound("No user with that email.");
+
+            // generate random temp password
+            var tempPassword = GenerateTempPassword();
+            user.PasswordHash = HashPassword(tempPassword);
+            _context.SaveChanges();
+
+            // send email
+            var body = $@"
+                <html>
+                <body style='font-family: Arial, sans-serif;'>
+                    <h2>Hello {user.FirstName},</h2>
+                    <p>Your temporary password is: <b>{tempPassword}</b></p>
+                    <p>Please log in with this password and reset it immediately.</p>
+                    <br/>
+                    <p style='color:gray;'>– Amesco Support</p>
+                </body>
+                </html>";
+            Console.WriteLine("Sending Email Body:"); // for debugging
+            Console.WriteLine(body);
+            await _emailService.SendEmailAsync(user.Email, "Your Temporary Password", body);
+
+            return Ok(new { message = "Temporary password sent to your email." });
+        }
+
+        // ✅ Reset Password → user logs in with temp pw, then sets NEW password
+        [HttpPost("reset-password")]
+        public IActionResult ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
+            if (user == null) return NotFound("User not found.");
+
+            user.PasswordHash = HashPassword(request.NewPassword);
+            _context.SaveChanges();
+
+            return Ok(new { message = "Password has been reset successfully!" });
+        }
+
+        // --- Helpers ---
         private bool isValidEmail(string email)
         {
             if (string.IsNullOrWhiteSpace(email)) return false;
             var pattern = @"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$";
-            if (!System.Text.RegularExpressions.Regex.IsMatch(email, pattern)) return false;
-            var domain = email.Split('@').Length > 1 ? email.Split('@')[1] : "";
-            if (domain.EndsWith(".")) return false;
-            if (domain.Split('.').Length < 2) return false;
-            var tld = domain.Substring(domain.LastIndexOf('.') + 1);
-            if (tld.Length < 2 || !System.Text.RegularExpressions.Regex.IsMatch(tld, "^[A-Za-z]+$")) return false;
-            return true;
+            return System.Text.RegularExpressions.Regex.IsMatch(email, pattern);
         }
 
         private string HashPassword(string password)
@@ -68,6 +123,11 @@ namespace AmescoAPI.Controllers
                 var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
                 return Convert.ToBase64String(bytes);
             }
+        }
+
+        private string GenerateTempPassword()
+        {
+            return Guid.NewGuid().ToString("N")[..8]; // 8-char random temp password
         }
     }
 }
