@@ -32,17 +32,33 @@ namespace AmescoAPI.Services
             await client.DisconnectAsync(true);
         }
 
-        public async Task ReadInboxAsync()
+        // IMAP: Sync emails
+        public async Task SyncInboxAsync()
         {
             using var client = new MailKit.Net.Imap.ImapClient();
             await client.ConnectAsync(_settings.ImapHost, _settings.ImapPort, SecureSocketOptions.SslOnConnect);
             await client.AuthenticateAsync(_settings.SmtpUser, _settings.SmtpPass);
             var inbox = client.Inbox;
             await inbox.OpenAsync(MailKit.FolderAccess.ReadOnly);
-            var uids = await inbox.SearchAsync(MailKit.Search.SearchQuery.NotSeen);
+            var uids = await inbox.SearchAsync(MailKit.Search.SearchQuery.All);
             foreach (var uid in uids)
             {
                 var msg = await inbox.GetMessageAsync(uid);
+                // process msg
+            }
+            await client.DisconnectAsync(true);
+        }
+
+        // POP3: Download emails
+        public async Task DownloadInboxAsync()
+        {
+            using var client = new MailKit.Net.Pop3.Pop3Client();
+            await client.ConnectAsync(_settings.Pop3Host, _settings.Pop3Port, SecureSocketOptions.SslOnConnect);
+            await client.AuthenticateAsync(_settings.SmtpUser, _settings.SmtpPass);
+            int messageCount = client.Count;
+            for (int i = 0; i < messageCount; i++)
+            {
+                var msg = await client.GetMessageAsync(i);
                 // process msg
             }
             await client.DisconnectAsync(true);

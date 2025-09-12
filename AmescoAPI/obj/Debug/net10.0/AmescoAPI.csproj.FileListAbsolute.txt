@@ -156,3 +156,4 @@ C:\Users\themo\OneDrive\Documents\GitHub\amesco-plus-be\AmescoAPI\obj\Debug\net1
 C:\Users\themo\OneDrive\Documents\GitHub\amesco-plus-be\AmescoAPI\bin\Debug\net10.0\BouncyCastle.Cryptography.dll
 C:\Users\themo\OneDrive\Documents\GitHub\amesco-plus-be\AmescoAPI\bin\Debug\net10.0\MailKit.dll
 C:\Users\themo\OneDrive\Documents\GitHub\amesco-plus-be\AmescoAPI\bin\Debug\net10.0\MimeKit.dll
+C:\Users\themo\OneDrive\Documents\GitHub\amesco-plus-be\AmescoAPI\bin\Debug\net10.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll

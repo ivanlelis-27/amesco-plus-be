@@ -16,7 +16,14 @@ namespace AmescoAPI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly IEmailService _emailService; // << inject email service
+        private readonly IEmailService _emailService;
+
+        private string GenerateMemberId()
+        {
+            var random = new Random();
+            int randomDigits = random.Next(1000, 10000); // 4 digits
+            return $"588303500-{randomDigits}";
+        }
 
         public AuthController(AppDbContext context, IEmailService emailService)
         {
@@ -44,11 +51,24 @@ namespace AmescoAPI.Controllers
                 FirstName = request.FirstName,
                 LastName = request.LastName,
                 Mobile = request.Mobile,
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.Now,
+                MemberId = GenerateMemberId()
             };
 
             _context.Users.Add(user);
             _context.SaveChanges();
+
+            // Create Points row for new user
+            var points = new Points
+            {
+                UserId = user.Id,
+                PointsBalance = 0,
+                UpdatedAt = DateTime.Now
+            };
+            _context.Points.Add(points);
+            _context.SaveChanges();
+            Console.WriteLine($"User created: {user.Id}, {user.Email}");
+            Console.WriteLine($"Points row created for UserId: {points.UserId}, PointsBalance: {points.PointsBalance}");
 
             return Ok(new { message = "Registration successful!" });
         }
@@ -62,7 +82,16 @@ namespace AmescoAPI.Controllers
             if (user.PasswordHash != HashPassword(request.Password))
                 return BadRequest("Invalid password.");
 
-            return Ok(new { message = "Login successful!" });
+            var token = TokenUtils.GenerateJwtToken(
+            user.Id.ToString(),
+            user.Email,
+            user.FirstName,
+            user.LastName,
+            user.Mobile,
+            user.MemberId,
+            this.HttpContext.RequestServices.GetService<IConfiguration>());
+            Console.WriteLine($"JWT issued for user {user.Email}: {token}");
+            return Ok(new { message = "Login successful!", token });
         }
 
         // ✅ Forgot Password → sends TEMPORARY password

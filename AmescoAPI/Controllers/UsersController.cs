@@ -10,6 +10,31 @@ namespace AmescoAPI.Controllers
     public class UsersController : ControllerBase
     {
         private readonly AppDbContext _context;
+        [HttpGet("me")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public IActionResult Me()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub);
+            if (userIdClaim == null)
+                return Unauthorized();
+
+            if (!int.TryParse(userIdClaim.Value, out int userId))
+                return Unauthorized();
+
+            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            if (user == null)
+                return NotFound();
+
+            var points = _context.Points.FirstOrDefault(p => p.UserId == userId);
+
+            return Ok(new
+            {
+                name = $"{user.FirstName} {user.LastName}",
+                email = user.Email,
+                mobile = user.Mobile,
+                points = points?.PointsBalance ?? 0
+            });
+        }
 
         public UsersController(AppDbContext context)
         {

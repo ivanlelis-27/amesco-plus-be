@@ -8,6 +8,8 @@ namespace AmescoAPI.Models
         public int SmtpPort { get; set; }
         public required string ImapHost { get; set; }
         public int ImapPort { get; set; }
+        public required string Pop3Host { get; set; }
+        public int Pop3Port { get; set; }
         public required string SmtpUser { get; set; }
         public required string SmtpPass { get; set; }
     }
