@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AmescoAPI.Controllers
 {
@@ -100,7 +101,7 @@ namespace AmescoAPI.Controllers
             var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
             if (user == null) return NotFound("No user with that email.");
 
- 
+
             var tempPassword = GenerateTempPassword();
             user.PasswordHash = HashPassword(tempPassword);
             _context.SaveChanges();
@@ -132,6 +133,32 @@ namespace AmescoAPI.Controllers
             _context.SaveChanges();
 
             return Ok(new { message = "Password has been reset successfully!" });
+        }
+
+        [Authorize]
+        [HttpGet("qr")]
+        public IActionResult GetUserQr()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized();
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID");
+
+            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            if (user == null)
+                return NotFound("User not found");
+
+            var memberIdLast4 = user.MemberId.Length >= 4 ? user.MemberId[^4..] : user.MemberId;
+            var qrString = $"{user.Email}-{memberIdLast4}";
+
+            using var qrGenerator = new QRCodeGenerator();
+            using var qrData = qrGenerator.CreateQrCode(qrString, QRCodeGenerator.ECCLevel.M);
+            using var qrCode = new PngByteQRCode(qrData);
+            var qrBytes = qrCode.GetGraphic(20);
+
+            return File(qrBytes, "image/png");
         }
 
         private bool isValidEmail(string email)
