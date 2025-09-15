@@ -6,6 +6,7 @@ using AmescoAPI.Models.DTOs;
 using Microsoft.Data.SqlClient;
 using Dapper;
 using AmescoAPI.Data;
+using QRCoder;
 using System.Linq;
 using System.IO;
 
@@ -60,7 +61,7 @@ namespace AmescoAPI.Controllers
 
             var points = _context.Points.FirstOrDefault(p => p.UserId == userId);
 
-   
+
             dynamic? userImage = null;
             byte[]? profileImageBytes = null;
             string? profileImageType = null;
@@ -72,7 +73,7 @@ namespace AmescoAPI.Controllers
                     FROM UserImages 
                     WHERE MemberId = @MemberId 
                     ORDER BY UploadedAt DESC",
-                    new { MemberId = user.MemberId } // keep as string
+                    new { MemberId = user.MemberId }
                 );
 
                 if (userImage != null)
@@ -80,11 +81,11 @@ namespace AmescoAPI.Controllers
                     profileImageBytes = (byte[])userImage.ProfileImage;
                     profileImageType = (string)userImage.ImageType;
                 }
-            }   
+            }
 
-            string? profileImageBase64 = profileImageBytes != null 
-            ? Convert.ToBase64String(profileImageBytes) 
-            : null; 
+            string? profileImageBase64 = profileImageBytes != null
+            ? Convert.ToBase64String(profileImageBytes)
+            : null;
 
             return Ok(new
             {
@@ -159,6 +160,66 @@ namespace AmescoAPI.Controllers
             return NoContent();
         }
 
+        [Authorize]
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("Invalid token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID in token.");
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                return NotFound("User not found.");
+
+            // Hash the new password
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var hashedBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(dto.NewPassword));
+            var hashedPassword = Convert.ToBase64String(hashedBytes);
+
+            user.PasswordHash = hashedPassword;
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Password updated successfully." });
+        }
+
+        public class ChangePasswordDto
+        {
+            public string NewPassword { get; set; } = string.Empty;
+        }
+
+        [Authorize]
+        [HttpGet("qr")]
+        public IActionResult GetUserQr()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized();
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID");
+
+            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            if (user == null)
+                return NotFound("User not found");
+
+            var memberIdLast4 = user.MemberId.Length >= 4 ? user.MemberId[^4..] : user.MemberId;
+            var qrString = $"{user.Email}-{memberIdLast4}";
+
+            using var qrGenerator = new QRCodeGenerator();
+            using var qrCodeData = qrGenerator.CreateQrCode(qrString, QRCodeGenerator.ECCLevel.M);
+            using var qrCode = new PngByteQRCode(qrCodeData);
+            var qrCodeBytes = qrCode.GetGraphic(20);
+
+
+            return File(qrCodeBytes, "image/png");
+        }
+
+
 
         [Authorize]
         [HttpPost("upload-image")]
@@ -190,7 +251,7 @@ namespace AmescoAPI.Controllers
             // Check if a row already exists for this MemberId
             var exists = await connection.QueryFirstOrDefaultAsync<int>(
                 "SELECT COUNT(1) FROM UserImages WHERE MemberId = @MemberId",
-                new { MemberId = user.MemberId } // Pass the string MemberId from your Users table
+                new { MemberId = user.MemberId } 
             );
 
             if (exists > 0)
