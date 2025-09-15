@@ -5,9 +5,11 @@ using AmescoAPI.Data;
 using AmescoAPI.Models;
 using AmescoAPI.Models.Auth;
 using AmescoAPI.Services;
+using QRCoder;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.IO;
 
 namespace AmescoAPI.Controllers
 {
@@ -31,7 +33,6 @@ namespace AmescoAPI.Controllers
             _emailService = emailService;
         }
 
-        // ✅ Register
         [HttpPost("register")]
         public IActionResult Register([FromBody] RegisterRequest request)
         {
@@ -58,7 +59,6 @@ namespace AmescoAPI.Controllers
             _context.Users.Add(user);
             _context.SaveChanges();
 
-            // Create Points row for new user
             var points = new Points
             {
                 UserId = user.Id,
@@ -94,19 +94,17 @@ namespace AmescoAPI.Controllers
             return Ok(new { message = "Login successful!", token });
         }
 
-        // ✅ Forgot Password → sends TEMPORARY password
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
         {
             var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
             if (user == null) return NotFound("No user with that email.");
 
-            // generate random temp password
+ 
             var tempPassword = GenerateTempPassword();
             user.PasswordHash = HashPassword(tempPassword);
             _context.SaveChanges();
 
-            // send email
             var body = $@"
                 <html>
                 <body style='font-family: Arial, sans-serif;'>
@@ -124,7 +122,6 @@ namespace AmescoAPI.Controllers
             return Ok(new { message = "Temporary password sent to your email." });
         }
 
-        // ✅ Reset Password → user logs in with temp pw, then sets NEW password
         [HttpPost("reset-password")]
         public IActionResult ResetPassword([FromBody] ResetPasswordRequest request)
         {
@@ -137,7 +134,6 @@ namespace AmescoAPI.Controllers
             return Ok(new { message = "Password has been reset successfully!" });
         }
 
-        // --- Helpers ---
         private bool isValidEmail(string email)
         {
             if (string.IsNullOrWhiteSpace(email)) return false;
