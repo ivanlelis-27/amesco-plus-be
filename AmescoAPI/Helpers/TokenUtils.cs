@@ -15,15 +15,17 @@ public static class TokenUtils
         var jwtSettings = config.GetSection("Jwt");
         var claims = new[]
         {
-        new Claim(JwtRegisteredClaimNames.Sub, userId),
-        new Claim(JwtRegisteredClaimNames.Email, email),
-        new Claim("firstName", firstName ?? ""),
-        new Claim("lastName", lastName ?? ""),
-        new Claim("mobile", mobile ?? ""),
-        new Claim("memberId", memberId ?? "")
-    };
+            new Claim(JwtRegisteredClaimNames.Sub, userId),
+            new Claim(JwtRegisteredClaimNames.Email, email),
+            new Claim("firstName", firstName ?? ""),
+            new Claim("lastName", lastName ?? ""),
+            new Claim("mobile", mobile ?? ""),
+            new Claim("memberId", memberId ?? "")
+        };
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? ""));
+        var keyString = jwtSettings["Key"] ?? "";
+        Console.WriteLine("JWT KEY USED FOR SIGNING: >" + keyString + "<");
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyString));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(

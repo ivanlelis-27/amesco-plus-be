@@ -9,7 +9,7 @@ namespace AmescoAPI.Models
         public string LastName { get; set; } = string.Empty;
         public string? Mobile { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
-        public string MemberId { get; set; } = string.Empty;
+        public string MemberId { get; set; } = null!;
         public string? ResetTokenHash { get; set; }
         public DateTime? ResetTokenExpiry { get; set; }
     }

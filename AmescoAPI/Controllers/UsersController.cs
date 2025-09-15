@@ -1,7 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
-using AmescoAPI.Data;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using AmescoAPI.Models;
+using AmescoAPI.Models.DTOs;
+using Microsoft.Data.SqlClient;
+using Dapper;
+using AmescoAPI.Data;
 using System.Linq;
+using System.IO;
 
 namespace AmescoAPI.Controllers
 {
@@ -10,42 +16,90 @@ namespace AmescoAPI.Controllers
     public class UsersController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IConfiguration _config;
+        private readonly string _imagesConnectionString;
+
+        public UsersController(AppDbContext context, IConfiguration config)
+        {
+            _context = context;
+            _config = config;
+            _imagesConnectionString = _config.GetConnectionString("ImagesConnection");
+        }
+
         [HttpGet("me")]
-        [Microsoft.AspNetCore.Authorization.Authorize]
+        [Authorize]
         public IActionResult Me()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub);
-            if (userIdClaim == null)
-                return Unauthorized();
+            Console.WriteLine("--- JWT Claims Received ---");
+            foreach (var claim in User.Claims)
+            {
+                Console.WriteLine($"Type: {claim.Type}, Value: {claim.Value}");
+            }
+            Console.WriteLine("---------------------------");
 
-            if (!int.TryParse(userIdClaim.Value, out int userId))
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                Console.WriteLine("No 'sub'/'NameIdentifier' claim found. Returning Unauthorized.");
                 return Unauthorized();
+            }
+
+            if (!int.TryParse(userIdClaim, out int userId))
+            {
+                Console.WriteLine($"Claim value not an int: {userIdClaim}. Returning Unauthorized.");
+                return Unauthorized();
+            }
 
             var user = _context.Users.FirstOrDefault(u => u.Id == userId);
             if (user == null)
+            {
+                Console.WriteLine($"No user found for ID: {userId}. Returning NotFound.");
                 return NotFound();
+            }
 
             var points = _context.Points.FirstOrDefault(p => p.UserId == userId);
+
+   
+            dynamic? userImage = null;
+            byte[]? profileImageBytes = null;
+            string? profileImageType = null;
+
+            using (var connection = new SqlConnection(_imagesConnectionString))
+            {
+                userImage = connection.QueryFirstOrDefault<dynamic>(
+                    @"SELECT TOP 1 ProfileImage, ImageType
+                    FROM UserImages 
+                    WHERE MemberId = @MemberId 
+                    ORDER BY UploadedAt DESC",
+                    new { MemberId = user.MemberId } // keep as string
+                );
+
+                if (userImage != null)
+                {
+                    profileImageBytes = (byte[])userImage.ProfileImage;
+                    profileImageType = (string)userImage.ImageType;
+                }
+            }   
+
+            string? profileImageBase64 = profileImageBytes != null 
+            ? Convert.ToBase64String(profileImageBytes) 
+            : null; 
 
             return Ok(new
             {
                 name = $"{user.FirstName} {user.LastName}",
                 email = user.Email,
                 mobile = user.Mobile,
-                points = points?.PointsBalance ?? 0
+                memberId = user.MemberId,
+                points = points?.PointsBalance ?? 0,
+                profileImage = profileImageBytes != null ? Convert.ToBase64String(profileImageBytes) : null,
+                profileImageType = profileImageBytes != null ? "png" : null
             });
         }
 
-        public UsersController(AppDbContext context)
-        {
-            _context = context;
-        }
-
         [HttpGet]
-        public IActionResult GetAll()
-        {
-            return Ok(_context.Users.ToList());
-        }
+        public IActionResult GetAll() => Ok(_context.Users.ToList());
 
         [HttpGet("{id}")]
         public IActionResult Get(int id)
@@ -61,11 +115,12 @@ namespace AmescoAPI.Controllers
             if (!IsValidEmail(user.Email))
                 return BadRequest("Invalid email format.");
 
-            user.CreatedAt = DateTime.Now; // auto set if not provided
+            user.CreatedAt = DateTime.Now;
             _context.Users.Add(user);
             _context.SaveChanges();
             return CreatedAtAction(nameof(Get), new { id = user.Id }, user);
         }
+
         private bool IsValidEmail(string email)
         {
             if (string.IsNullOrWhiteSpace(email)) return false;
@@ -78,14 +133,12 @@ namespace AmescoAPI.Controllers
             return true;
         }
 
-
         [HttpPut("{id}")]
         public IActionResult Update(int id, Users updated)
         {
             var user = _context.Users.Find(id);
             if (user == null) return NotFound();
 
-            // update only relevant fields
             user.FirstName = updated.FirstName;
             user.LastName = updated.LastName;
             user.Email = updated.Email;
@@ -104,6 +157,96 @@ namespace AmescoAPI.Controllers
             _context.Users.Remove(user);
             _context.SaveChanges();
             return NoContent();
+        }
+
+
+        [Authorize]
+        [HttpPost("upload-image")]
+        public async Task<IActionResult> UploadProfileImage([FromForm] IFormFile image)
+        {
+            if (image == null || image.Length == 0)
+                return BadRequest("No file uploaded.");
+
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("Invalid token, no userId found.");
+
+            if (!int.TryParse(userIdClaim, out var userId))
+                return BadRequest("Invalid userId in token.");
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                return NotFound("User not found.");
+
+            using var ms = new MemoryStream();
+            await image.CopyToAsync(ms);
+            var imageBytes = ms.ToArray();
+
+            string imageType = image.ContentType.Contains("png") ? "png" : "jpeg";
+
+            using var connection = new SqlConnection(_imagesConnectionString);
+            connection.Open();
+
+            // Check if a row already exists for this MemberId
+            var exists = await connection.QueryFirstOrDefaultAsync<int>(
+                "SELECT COUNT(1) FROM UserImages WHERE MemberId = @MemberId",
+                new { MemberId = user.MemberId } // Pass the string MemberId from your Users table
+            );
+
+            if (exists > 0)
+            {
+                // Update existing row
+                string updateQuery = @"
+                    UPDATE UserImages
+                    SET ProfileImage = @ProfileImage,
+                        ImageType = @ImageType,
+                        UploadedAt = GETDATE()
+                    WHERE MemberId = @MemberId";
+
+                await connection.ExecuteAsync(updateQuery, new
+                {
+                    ProfileImage = imageBytes,
+                    ImageType = imageType,
+                    MemberId = user.MemberId
+                });
+            }
+            else
+            {
+                // Insert new row
+                string insertQuery = @"
+                    INSERT INTO UserImages (MemberId, ProfileImage, ImageType, UploadedAt)
+                    VALUES (@MemberId, @ProfileImage, @ImageType, GETDATE())";
+
+                await connection.ExecuteAsync(insertQuery, new
+                {
+                    MemberId = user.MemberId,
+                    ProfileImage = imageBytes,
+                    ImageType = imageType
+                });
+            }
+
+            return Ok(new { message = "Profile image uploaded successfully!" });
+        }
+
+
+        [HttpDelete("clear-user-images")]
+        [Authorize]
+        public IActionResult ClearUserImages()
+        {
+            try
+            {
+                using (var connection = new SqlConnection(_imagesConnectionString))
+                {
+                    connection.Open();
+                    var rowsAffected = connection.Execute("DELETE FROM dbo.UserImages");
+                    return Ok(new { message = $"Deleted {rowsAffected} rows from UserImages." });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error clearing UserImages: " + ex.Message);
+                return StatusCode(500, new { error = "Failed to clear UserImages." });
+            }
         }
 
     }
