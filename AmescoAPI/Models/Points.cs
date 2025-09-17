@@ -4,7 +4,7 @@ namespace AmescoAPI.Models
     {
         public int Id { get; set; }
         public int UserId { get; set; }
-        public int PointsBalance { get; set; } = 0;
+        public decimal PointsBalance { get; set; } = 0;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
 }

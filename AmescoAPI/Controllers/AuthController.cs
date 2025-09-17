@@ -24,8 +24,9 @@ namespace AmescoAPI.Controllers
         private string GenerateMemberId()
         {
             var random = new Random();
-            int randomDigits = random.Next(1000, 10000); // 4 digits
-            return $"588303500-{randomDigits}";
+            string randomDigits = string.Concat(Enumerable.Range(0, 9).Select(_ => random.Next(0, 10).ToString()));
+            int seriesCounter = _context.Users.Count() + 1;
+            return $"{randomDigits}-{seriesCounter}";
         }
 
         public AuthController(AppDbContext context, IEmailService emailService)
