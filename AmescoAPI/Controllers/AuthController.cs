@@ -83,6 +83,7 @@ namespace AmescoAPI.Controllers
             if (user.PasswordHash != HashPassword(request.Password))
                 return BadRequest("Invalid password.");
 
+#pragma warning disable CS8604 // Possible null reference argument.
             var token = TokenUtils.GenerateJwtToken(
             user.Id.ToString(),
             user.Email,
@@ -91,6 +92,7 @@ namespace AmescoAPI.Controllers
             user.Mobile,
             user.MemberId,
             this.HttpContext.RequestServices.GetService<IConfiguration>());
+#pragma warning restore CS8604 // Possible null reference argument.
             Console.WriteLine($"JWT issued for user {user.Email}: {token}");
             return Ok(new { message = "Login successful!", token });
         }
@@ -136,8 +138,8 @@ namespace AmescoAPI.Controllers
         }
 
         [Authorize]
-        [HttpGet("qr")]
-        public IActionResult GetUserQr()
+        [HttpDelete("unsubscribe")]
+        public IActionResult Unsubscribe()
         {
             var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim))
@@ -150,15 +152,10 @@ namespace AmescoAPI.Controllers
             if (user == null)
                 return NotFound("User not found");
 
-            var memberIdLast4 = user.MemberId.Length >= 4 ? user.MemberId[^4..] : user.MemberId;
-            var qrString = $"{user.Email}-{memberIdLast4}";
-
-            using var qrGenerator = new QRCodeGenerator();
-            using var qrData = qrGenerator.CreateQrCode(qrString, QRCodeGenerator.ECCLevel.M);
-            using var qrCode = new PngByteQRCode(qrData);
-            var qrBytes = qrCode.GetGraphic(20);
-
-            return File(qrBytes, "image/png");
+            _context.Users.Remove(user);
+            _context.SaveChanges();
+            Console.WriteLine($"User deleted: {user.Id}, {user.Email}");
+            return Ok(new { message = "Account deleted successfully." });
         }
 
         private bool isValidEmail(string email)

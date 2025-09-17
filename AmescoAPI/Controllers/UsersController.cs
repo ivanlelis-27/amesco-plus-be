@@ -211,12 +211,12 @@ namespace AmescoAPI.Controllers
             var qrString = $"{user.Email}-{memberIdLast4}";
 
             using var qrGenerator = new QRCodeGenerator();
-            using var qrCodeData = qrGenerator.CreateQrCode(qrString, QRCodeGenerator.ECCLevel.M);
-            using var qrCode = new PngByteQRCode(qrCodeData);
-            var qrCodeBytes = qrCode.GetGraphic(20);
+            using var qrData = qrGenerator.CreateQrCode(qrString, QRCodeGenerator.ECCLevel.M);
+            using var qrCode = new PngByteQRCode(qrData);
+            var qrBytes = qrCode.GetGraphic(20);
 
-
-            return File(qrCodeBytes, "image/png");
+            var base64Qr = Convert.ToBase64String(qrBytes);
+            return Ok(new { qrImage = base64Qr });
         }
 
 
@@ -251,7 +251,7 @@ namespace AmescoAPI.Controllers
             // Check if a row already exists for this MemberId
             var exists = await connection.QueryFirstOrDefaultAsync<int>(
                 "SELECT COUNT(1) FROM UserImages WHERE MemberId = @MemberId",
-                new { MemberId = user.MemberId } 
+                new { MemberId = user.MemberId }
             );
 
             if (exists > 0)
