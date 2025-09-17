@@ -83,7 +83,6 @@ namespace AmescoAPI.Controllers
             if (user.PasswordHash != HashPassword(request.Password))
                 return BadRequest("Invalid password.");
 
-#pragma warning disable CS8604 // Possible null reference argument.
             var token = TokenUtils.GenerateJwtToken(
             user.Id.ToString(),
             user.Email,
@@ -92,7 +91,6 @@ namespace AmescoAPI.Controllers
             user.Mobile,
             user.MemberId,
             this.HttpContext.RequestServices.GetService<IConfiguration>());
-#pragma warning restore CS8604 // Possible null reference argument.
             Console.WriteLine($"JWT issued for user {user.Email}: {token}");
             return Ok(new { message = "Login successful!", token });
         }
