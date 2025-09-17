@@ -58,7 +58,7 @@ namespace AmescoAPI.Controllers
             string seriesNumber = memberId.Contains('-') ? memberId.Split('-').Last() : "";
 
             // Build QR payload (vertical format)
-            string qrPayload = $"Voucher Code: {voucher.VoucherCode}\n" +
+            string qrPayload = $"{voucher.VoucherCode}\n" +
                               $"Series: {seriesNumber}\n" +
                               $"Value: {voucher.Value}\n" +
                               $"Email: {email}\n" +

@@ -207,11 +207,20 @@ namespace AmescoAPI.Controllers
             if (user == null)
                 return NotFound("User not found");
 
-            var memberIdLast4 = user.MemberId.Length >= 4 ? user.MemberId[^4..] : user.MemberId;
-            var qrString = $"{user.Email}-{memberIdLast4}";
+            // Get series number from MemberId
+            string series = user.MemberId.Contains('-') ? user.MemberId.Split('-').Last() : "";
+            string fullName = $"{user.FirstName} {user.LastName}";
+            var points = _context.Points.FirstOrDefault(p => p.UserId == user.Id);
+            decimal pointsBalance = points?.PointsBalance ?? 0;
+
+            // Build QR payload (vertical format)
+            string qrPayload = $"Series: {series}\n" +
+                              $"Name: {fullName}\n" +
+                              $"Email: {user.Email}\n" +
+                              $"PointsBalance: {pointsBalance}";
 
             using var qrGenerator = new QRCodeGenerator();
-            using var qrData = qrGenerator.CreateQrCode(qrString, QRCodeGenerator.ECCLevel.M);
+            using var qrData = qrGenerator.CreateQrCode(qrPayload, QRCodeGenerator.ECCLevel.M);
             using var qrCode = new PngByteQRCode(qrData);
             var qrBytes = qrCode.GetGraphic(20);
 
