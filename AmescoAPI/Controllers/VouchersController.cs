@@ -51,13 +51,11 @@ namespace AmescoAPI.Controllers
             _context.Vouchers.Add(voucher);
             _context.SaveChanges();
 
-            // Get user and series number
             var user = _context.Users.FirstOrDefault(u => u.Id == request.UserId);
             string email = user?.Email ?? "";
             string memberId = user?.MemberId ?? "";
             string seriesNumber = memberId.Contains('-') ? memberId.Split('-').Last() : "";
 
-            // Build QR payload (vertical format)
             string qrPayload = $"{voucher.VoucherCode}\n" +
                               $"Series: {seriesNumber}\n" +
                               $"Value: {voucher.Value}\n" +
@@ -65,7 +63,6 @@ namespace AmescoAPI.Controllers
                               $"Date Created: {voucher.DateCreated:yyyy-MM-dd HH:mm:ss}\n" +
                               $"Points Balance: {points.PointsBalance}";
 
-            // Generate QR code PNG and convert to Base64
             string base64Qr = null;
             try
             {

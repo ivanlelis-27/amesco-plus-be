@@ -11,6 +11,8 @@ namespace AmescoAPI.Data
         public DbSet<Points> Points { get; set; }
         public DbSet<UserImage> UserImages { get; set; } = null!;
         public DbSet<Voucher> Vouchers { get; set; }
+        public DbSet<Transaction> Transactions { get; set; }
+        public DbSet<TransactionProduct> TransactionProducts { get; set; }
 
     }
 }
