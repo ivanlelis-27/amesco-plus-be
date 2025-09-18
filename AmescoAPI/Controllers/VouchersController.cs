@@ -82,5 +82,36 @@ namespace AmescoAPI.Controllers
                 qrImage = base64Qr
             });
         }
+
+        [HttpDelete("delete")]
+        public IActionResult DeleteVoucher([FromQuery] string voucherCode)
+        {
+            var voucher = _context.Vouchers.FirstOrDefault(v => v.VoucherCode == voucherCode);
+            if (voucher == null)
+            {
+                return NotFound(new { message = "Voucher not found." });
+            }
+
+            // Credit back points to the user
+            var points = _context.Points.FirstOrDefault(p => p.UserId == voucher.UserId);
+            if (points != null)
+            {
+                points.PointsBalance += voucher.Value;
+                points.UpdatedAt = DateTime.Now;
+            }
+
+            _context.Vouchers.Remove(voucher);
+            _context.SaveChanges();
+            return Ok(new { message = "Voucher deleted and points credited back.", newPointsBalance = points?.PointsBalance });
+        }
+
+        [HttpDelete("delete-all")]
+        public IActionResult DeleteAllVouchers()
+        {
+            var allVouchers = _context.Vouchers.ToList();
+            _context.Vouchers.RemoveRange(allVouchers);
+            _context.SaveChanges();
+            return Ok(new { message = "All vouchers deleted." });
+        }
     }
 }

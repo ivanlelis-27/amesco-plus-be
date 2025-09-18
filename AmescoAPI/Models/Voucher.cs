@@ -1,9 +1,12 @@
 using System;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AmescoAPI.Models
 {
     public class Voucher
     {
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int VoucherNumber { get; set; }
         public long VoucherId { get; set; }
         public int UserId { get; set; }
         public string VoucherCode { get; set; }

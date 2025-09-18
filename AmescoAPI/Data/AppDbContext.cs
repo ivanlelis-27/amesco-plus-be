@@ -14,5 +14,12 @@ namespace AmescoAPI.Data
         public DbSet<Transaction> Transactions { get; set; }
         public DbSet<TransactionProduct> TransactionProducts { get; set; }
 
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Voucher>()
+                .Property(v => v.VoucherId)
+                .ValueGeneratedNever();
+        }
+
     }
 }

@@ -9,6 +9,7 @@ using AmescoAPI.Data;
 using QRCoder;
 using System.Linq;
 using System.IO;
+using Microsoft.EntityFrameworkCore;
 
 namespace AmescoAPI.Controllers
 {
@@ -97,6 +98,13 @@ namespace AmescoAPI.Controllers
                 profileImage = profileImageBytes != null ? Convert.ToBase64String(profileImageBytes) : null,
                 profileImageType = profileImageBytes != null ? "png" : null
             });
+        }
+
+        [HttpGet("user/{userId}")]
+        public IActionResult GetVouchersForUser(int userId)
+        {
+            var vouchers = _context.Vouchers.Where(v => v.UserId == userId).ToList();
+            return Ok(vouchers);
         }
 
         [HttpGet]
