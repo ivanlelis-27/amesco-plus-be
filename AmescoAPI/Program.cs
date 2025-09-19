@@ -1,6 +1,6 @@
 using AmescoAPI.Data;
-using AmescoAPI.Models;      // <- for EmailSettings
-using AmescoAPI.Services;    // <- for IEmailService & EmailService
+using AmescoAPI.Models;
+using AmescoAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -19,9 +19,11 @@ builder.Services.Configure<EmailSettings>(
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("AmescoConnection")));
+
+builder.Services.AddDbContext<ImagesDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("AmescoImagesConnection")));
 
 builder.Services.AddCors(options =>
 {
