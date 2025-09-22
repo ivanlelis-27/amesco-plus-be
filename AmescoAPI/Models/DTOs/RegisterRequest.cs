@@ -8,5 +8,6 @@ namespace AmescoAPI.Models
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string? Mobile { get; set; }
+        public string MemberId { get; set; } = string.Empty;
     }
 }

@@ -24,7 +24,7 @@ namespace AmescoAPI.Controllers
         private string GenerateMemberId()
         {
             var random = new Random();
-            string randomDigits = string.Concat(Enumerable.Range(0, 9).Select(_ => random.Next(0, 10).ToString()));
+            string randomDigits = string.Concat(Enumerable.Range(0, 10).Select(_ => random.Next(0, 10).ToString()));
             int seriesCounter = _context.Users.Count() + 1;
             return $"{randomDigits}-{seriesCounter}";
         }
@@ -47,6 +47,9 @@ namespace AmescoAPI.Controllers
             if (_context.Users.Any(u => u.Email == request.Email))
                 return BadRequest("Email already registered.");
 
+            if (string.IsNullOrWhiteSpace(request.MemberId))
+                return BadRequest("MemberId is required.");
+
             var user = new Users
             {
                 Email = request.Email,
@@ -55,7 +58,7 @@ namespace AmescoAPI.Controllers
                 LastName = request.LastName,
                 Mobile = request.Mobile,
                 CreatedAt = DateTime.Now,
-                MemberId = GenerateMemberId()
+                MemberId = request.MemberId // <-- Use the memberId from the request!
             };
 
             _context.Users.Add(user);
@@ -69,10 +72,65 @@ namespace AmescoAPI.Controllers
             };
             _context.Points.Add(points);
             _context.SaveChanges();
-            Console.WriteLine($"User created: {user.Id}, {user.Email}");
-            Console.WriteLine($"Points row created for UserId: {points.UserId}, PointsBalance: {points.PointsBalance}");
 
             return Ok(new { message = "Registration successful!" });
+        }
+
+        [HttpGet("generate-memberid")]
+        public IActionResult GenerateMemberIdApi()
+        {
+            var memberId = GenerateMemberId();
+            return Ok(new { memberId });
+        }
+
+        [HttpPost("bulk-register")]
+        public IActionResult BulkRegister([FromBody] List<RegisterRequest> requests)
+        {
+            var createdUsers = new List<object>();
+
+            foreach (var request in requests)
+            {
+                if (string.IsNullOrWhiteSpace(request.Email) ||
+                    string.IsNullOrWhiteSpace(request.Password) ||
+                    string.IsNullOrWhiteSpace(request.FirstName) ||
+                    string.IsNullOrWhiteSpace(request.LastName) ||
+                    string.IsNullOrWhiteSpace(request.MemberId))
+                {
+                    continue; // skip invalid entries
+                }
+
+                if (_context.Users.Any(u => u.Email == request.Email))
+                {
+                    continue; // skip duplicates
+                }
+
+                var user = new Users
+                {
+                    Email = request.Email,
+                    PasswordHash = HashPassword(request.Password),
+                    FirstName = request.FirstName,
+                    LastName = request.LastName,
+                    Mobile = request.Mobile,
+                    CreatedAt = DateTime.Now,
+                    MemberId = request.MemberId
+                };
+
+                _context.Users.Add(user);
+                _context.SaveChanges();
+
+                var points = new Points
+                {
+                    UserId = user.Id,
+                    PointsBalance = 0,
+                    UpdatedAt = DateTime.Now
+                };
+                _context.Points.Add(points);
+                _context.SaveChanges();
+
+                createdUsers.Add(new { user.Id, user.Email, user.MemberId });
+            }
+
+            return Ok(new { count = createdUsers.Count, users = createdUsers });
         }
 
         [HttpPost("login")]

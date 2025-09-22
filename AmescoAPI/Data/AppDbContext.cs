@@ -14,6 +14,8 @@ namespace AmescoAPI.Data
         public DbSet<Transaction> Transactions { get; set; }
         public DbSet<TransactionProduct> TransactionProducts { get; set; }
 
+        public DbSet<ExistingMember> ExistingMembers { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()

@@ -25,7 +25,7 @@ namespace AmescoAPI.Controllers
         {
             _context = context;
             _config = config;
-            _imagesConnectionString = _config.GetConnectionString("ImagesConnection");
+            _imagesConnectionString = _config.GetConnectionString("AmescoImagesConnection");
         }
 
         [HttpGet("me")]
