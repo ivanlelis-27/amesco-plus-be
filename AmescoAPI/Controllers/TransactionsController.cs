@@ -92,7 +92,7 @@ namespace AmescoAPI.Controllers
                 .Take(10)
                 .ToList();
 
-            // Join with Users table to get MemberId and FullName
+            // Join with Users table to get MemberId, FullName, and Email
             var ranking = userPoints
                 .Select((up, index) =>
                 {
@@ -103,6 +103,7 @@ namespace AmescoAPI.Controllers
                         userId = up.UserId,
                         memberId = user?.MemberId ?? "",
                         fullName = user != null ? $"{user.FirstName} {user.LastName}" : "",
+                        email = user?.Email ?? "",
                         totalEarnedPoints = up.TotalEarnedPoints
                     };
                 })
@@ -111,6 +112,12 @@ namespace AmescoAPI.Controllers
             return Ok(ranking);
         }
 
+        [HttpGet("total-earned-points")]
+        public IActionResult GetTotalEarnedPoints()
+        {
+            int totalEarnedPoints = _context.Transactions.Sum(t => t.EarnedPoints);
+            return Ok(new { totalEarnedPoints });
+        }
 
         // FOR TESTING PURPOSES ONLY
         [HttpDelete("clear-all")]
