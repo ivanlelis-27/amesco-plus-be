@@ -116,6 +116,27 @@ namespace AmescoAPI.Controllers
             return Ok(new { pointsRedeemers });
         }
 
+        [HttpGet("latest-transactions")]
+        public IActionResult GetLatestTransactions()
+        {
+            var latest = _context.Vouchers
+                .OrderByDescending(v => v.DateCreated)
+                .Take(5)
+                .Select(v => new
+                {
+                    points = v.PointsDeducted,
+                    member = _context.Users
+                        .Where(u => u.Id == v.UserId)
+                        .Select(u => $"{u.FirstName} {u.LastName}")
+                        .FirstOrDefault() ?? "",
+                    voucherCode = v.VoucherCode,
+                    createdOn = v.DateCreated
+                })
+                .ToList();
+
+            return Ok(latest);
+        }
+
         [HttpDelete("delete")]
         public IActionResult DeleteVoucher([FromQuery] string voucherCode)
         {

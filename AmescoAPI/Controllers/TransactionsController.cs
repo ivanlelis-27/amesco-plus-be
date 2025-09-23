@@ -119,6 +119,7 @@ namespace AmescoAPI.Controllers
             return Ok(new { totalEarnedPoints });
         }
 
+
         // FOR TESTING PURPOSES ONLY
         [HttpDelete("clear-all")]
         public IActionResult ClearAllTransactions()
