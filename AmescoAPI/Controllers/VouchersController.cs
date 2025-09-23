@@ -105,6 +105,17 @@ namespace AmescoAPI.Controllers
             });
         }
 
+        [HttpGet("points-redeemers-count")]
+        public IActionResult GetPointsRedeemersCount()
+        {
+            int pointsRedeemers = _context.Vouchers
+                .Select(v => v.UserId)
+                .Distinct()
+                .Count();
+
+            return Ok(new { pointsRedeemers });
+        }
+
         [HttpDelete("delete")]
         public IActionResult DeleteVoucher([FromQuery] string voucherCode)
         {
