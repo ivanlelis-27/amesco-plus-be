@@ -83,6 +83,28 @@ namespace AmescoAPI.Controllers
             });
         }
 
+        [HttpGet("count")]
+        public IActionResult GetVoucherCount()
+        {
+            int count = _context.Vouchers.Count();
+            return Ok(new { count });
+        }
+
+        [HttpGet("count-details")]
+        public IActionResult GetVoucherCountDetails()
+        {
+            int count = _context.Vouchers.Count();
+            int used = _context.Vouchers.Count(v => v.IsUsed);
+            int unused = count - used;
+
+            return Ok(new
+            {
+                count,
+                used,
+                unused
+            });
+        }
+
         [HttpDelete("delete")]
         public IActionResult DeleteVoucher([FromQuery] string voucherCode)
         {

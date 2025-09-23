@@ -327,5 +327,14 @@ namespace AmescoAPI.Controllers
             }
         }
 
+        [HttpGet("count")]
+        public IActionResult GetUserCount()
+        {
+            int count = _context.Users.Count();
+            return Ok(new { count });
+        }
+
     }
+
+
 }
