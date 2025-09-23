@@ -77,6 +77,40 @@ namespace AmescoAPI.Controllers
             return Ok(new { transaction, products });
         }
 
+        [HttpGet("top-10-ranking")]
+        public IActionResult GetTop10Ranking()
+        {
+            // Group transactions by UserId and sum EarnedPoints
+            var userPoints = _context.Transactions
+                .GroupBy(t => t.UserId)
+                .Select(g => new
+                {
+                    UserId = g.Key,
+                    TotalEarnedPoints = g.Sum(t => t.EarnedPoints)
+                })
+                .OrderByDescending(up => up.TotalEarnedPoints)
+                .Take(10)
+                .ToList();
+
+            // Join with Users table to get MemberId and FullName
+            var ranking = userPoints
+                .Select((up, index) =>
+                {
+                    var user = _context.Users.FirstOrDefault(u => u.Id == up.UserId);
+                    return new
+                    {
+                        rank = index + 1,
+                        userId = up.UserId,
+                        memberId = user?.MemberId ?? "",
+                        fullName = user != null ? $"{user.FirstName} {user.LastName}" : "",
+                        totalEarnedPoints = up.TotalEarnedPoints
+                    };
+                })
+                .ToList();
+
+            return Ok(ranking);
+        }
+
 
         // FOR TESTING PURPOSES ONLY
         [HttpDelete("clear-all")]
