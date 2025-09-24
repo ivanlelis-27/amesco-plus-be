@@ -8,7 +8,7 @@ namespace AmescoAPI.Models
         [Required]
         public int UserId { get; set; }
         [Required]
-        public int EarnedPoints { get; set; }
+        public decimal EarnedPoints { get; set; }
         public List<ProductDto> Products { get; set; } = new();
     }
 

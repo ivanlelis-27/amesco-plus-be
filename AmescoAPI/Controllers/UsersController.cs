@@ -334,6 +334,14 @@ namespace AmescoAPI.Controllers
             return Ok(new { count });
         }
 
+        [HttpGet("new-members")]
+        public IActionResult GetNewMembersCountThisMonth()
+        {
+            var oneMonthAgo = DateTime.Now.AddMonths(-1);
+            int count = _context.Users.Count(u => u.CreatedAt >= oneMonthAgo);
+            return Ok(new { count });
+        }
+
     }
 
 

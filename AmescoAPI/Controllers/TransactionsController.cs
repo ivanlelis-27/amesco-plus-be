@@ -115,7 +115,7 @@ namespace AmescoAPI.Controllers
         [HttpGet("total-earned-points")]
         public IActionResult GetTotalEarnedPoints()
         {
-            int totalEarnedPoints = _context.Transactions.Sum(t => t.EarnedPoints);
+            decimal totalEarnedPoints = _context.Transactions.Sum(t => t.EarnedPoints);
             return Ok(new { totalEarnedPoints });
         }
 

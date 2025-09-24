@@ -16,12 +16,24 @@ namespace AmescoAPI.Data
 
         public DbSet<ExistingMember> ExistingMembers { get; set; }
 
+        public DbSet<Branch> Branches { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()
                 .Property(v => v.VoucherId)
                 .ValueGeneratedNever();
+
+            modelBuilder.Entity<Branch>()
+            .Property(b => b.Latitude)
+            .HasColumnType("decimal(18,15)");
+
+            modelBuilder.Entity<Branch>()
+                .Property(b => b.Longitude)
+                .HasColumnType("decimal(18,15)");
         }
+
+
 
     }
 }
