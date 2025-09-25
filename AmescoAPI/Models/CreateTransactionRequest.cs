@@ -8,5 +8,6 @@ namespace AmescoAPI.Models
         public int UserId { get; set; }
         [Required]
         public int EarnedPoints { get; set; }
+        
     }
 }

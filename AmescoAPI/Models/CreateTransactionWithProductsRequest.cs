@@ -10,6 +10,7 @@ namespace AmescoAPI.Models
         [Required]
         public decimal EarnedPoints { get; set; }
         public List<ProductDto> Products { get; set; } = new();
+        public int BranchId { get; set; }
     }
 
     public class ProductDto

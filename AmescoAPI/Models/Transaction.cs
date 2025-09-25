@@ -8,5 +8,6 @@ namespace AmescoAPI.Models
         public int UserId { get; set; }
         public decimal EarnedPoints { get; set; }
         public DateTime DateIssued { get; set; }
+        public int BranchId { get; set; }
     }
 }

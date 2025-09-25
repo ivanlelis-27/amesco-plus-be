@@ -24,7 +24,8 @@ namespace AmescoAPI.Controllers
             {
                 UserId = request.UserId,
                 EarnedPoints = request.EarnedPoints,
-                DateIssued = DateTime.Now
+                DateIssued = DateTime.Now,
+                BranchId = request.BranchId,
             };
             _context.Transactions.Add(transaction);
             _context.SaveChanges();
@@ -36,7 +37,7 @@ namespace AmescoAPI.Controllers
                 {
                     TransactionId = transaction.TransactionId,
                     ProductName = prod.ProductName,
-                    Quantity = prod.Quantity
+                    Quantity = prod.Quantity,
                 };
                 _context.TransactionProducts.Add(tp);
             }
@@ -117,6 +118,35 @@ namespace AmescoAPI.Controllers
         {
             decimal totalEarnedPoints = _context.Transactions.Sum(t => t.EarnedPoints);
             return Ok(new { totalEarnedPoints });
+        }
+
+        [HttpGet("top-5-branches")]
+        public IActionResult GetTop5BranchesByPoints()
+        {
+            var branchPoints = _context.Transactions
+                .GroupBy(t => t.BranchId)
+                .Select(g => new
+                {
+                    BranchId = g.Key,
+                    TotalEarnedPoints = g.Sum(t => t.EarnedPoints)
+                })
+                .OrderByDescending(bp => bp.TotalEarnedPoints)
+                .Take(5)
+                .ToList();
+
+            var result = branchPoints.Select((bp, idx) =>
+            {
+                var branch = _context.Branches.FirstOrDefault(b => b.BranchID == bp.BranchId);
+                return new
+                {
+                    rank = $"top{idx + 1}",
+                    branchId = bp.BranchId,
+                    branchName = branch?.BranchName ?? "",
+                    totalEarnedPoints = bp.TotalEarnedPoints
+                };
+            }).ToList();
+
+            return Ok(result);
         }
 
 
