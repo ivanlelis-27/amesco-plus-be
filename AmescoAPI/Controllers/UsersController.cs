@@ -108,7 +108,40 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetAll() => Ok(_context.Users.ToList());
+        public IActionResult GetAll()
+        {
+            // Fetch images for all users from AmescoImages DB first
+            Dictionary<string, byte[]> images;
+            using (var connection = new SqlConnection(_imagesConnectionString))
+            {
+                connection.Open();
+                images = connection.Query<(string MemberId, byte[] ProfileImage)>(
+                    "SELECT MemberId, ProfileImage FROM UserImages"
+                ).ToDictionary(x => x.MemberId, x => x.ProfileImage);
+            }
+
+            var users = _context.Users
+                .Select(u => new
+                {
+                    u.Id,
+                    u.FirstName,
+                    u.LastName,
+                    u.Email,
+                    u.Mobile,
+                    u.MemberId,
+                    u.CreatedAt,
+                    points = _context.Points
+                        .Where(p => p.UserId == u.Id)
+                        .Select(p => p.PointsBalance)
+                        .FirstOrDefault(),
+                    profileImage = images.ContainsKey(u.MemberId)
+                        ? Convert.ToBase64String(images[u.MemberId])
+                        : null
+                })
+                .ToList();
+
+            return Ok(users);
+        }
 
         [HttpGet("{id}")]
         public IActionResult Get(int id)
