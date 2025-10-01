@@ -91,10 +91,18 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet("count-details")]
-        public IActionResult GetVoucherCountDetails()
+        public IActionResult GetVoucherCountDetails(DateTime? start, DateTime? end)
         {
-            int count = _context.Vouchers.Count();
-            int used = _context.Vouchers.Count(v => v.IsUsed);
+            var vouchers = _context.Vouchers.AsQueryable();
+
+            if (start.HasValue)
+                vouchers = vouchers.Where(v => v.DateCreated >= start.Value);
+
+            if (end.HasValue)
+                vouchers = vouchers.Where(v => v.DateCreated < end.Value);
+
+            int count = vouchers.Count();
+            int used = vouchers.Count(v => v.IsUsed);
             int unused = count - used;
 
             return Ok(new
@@ -106,14 +114,25 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet("points-redeemers-count")]
-        public IActionResult GetPointsRedeemersCount()
+        public IActionResult GetPointsRedeemersCount(DateTime? start, DateTime? end)
         {
-            int pointsRedeemers = _context.Vouchers
+            var vouchers = _context.Vouchers.AsQueryable();
+
+            if (start.HasValue)
+                vouchers = vouchers.Where(v => v.DateCreated >= start.Value);
+
+            if (end.HasValue)
+                vouchers = vouchers.Where(v => v.DateCreated < end.Value);
+
+            var pointsRedeemers = vouchers
+                .Where(v => v.IsUsed)
                 .Select(v => v.UserId)
                 .Distinct()
                 .Count();
 
-            return Ok(new { pointsRedeemers });
+            int memberCount = _context.Users.Count();
+
+            return Ok(new { pointsRedeemers, memberCount });
         }
 
         [HttpGet("latest-transactions")]

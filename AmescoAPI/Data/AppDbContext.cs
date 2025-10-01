@@ -18,6 +18,8 @@ namespace AmescoAPI.Data
 
         public DbSet<Branch> Branches { get; set; }
 
+        public DbSet<AccessControl> AccessControls { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()
