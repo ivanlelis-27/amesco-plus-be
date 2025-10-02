@@ -68,6 +68,23 @@ namespace AmescoAPI.Controllers
             return Ok(branch);
         }
 
-        
+        [HttpGet("branches-rankings")]
+        public IActionResult GetTop5BranchesByPointsGiven()
+        {
+            var topBranches = _context.Branches
+                .OrderByDescending(b => b.PointsGiven)
+                .Take(5)
+                .Select(b => new
+                {
+                    branchId = b.BranchID,
+                    branchName = b.BranchName,
+                    pointsGiven = b.PointsGiven
+                })
+                .ToList();
+
+            return Ok(topBranches);
+        }
+
+
     }
 }

@@ -52,6 +52,14 @@ namespace AmescoAPI.Controllers
                 _context.SaveChanges();
             }
 
+            // Update PointsGiven for the branch
+            var branch = _context.Branches.FirstOrDefault(b => b.BranchID == request.BranchId);
+            if (branch != null)
+            {
+                branch.PointsGiven += request.EarnedPoints;
+                _context.SaveChanges();
+            }
+
             // Return transaction and products
             var products = _context.TransactionProducts.Where(tp => tp.TransactionId == transaction.TransactionId).ToList();
             return Ok(new { transaction, products, newPointsBalance = points?.PointsBalance });
@@ -120,6 +128,23 @@ namespace AmescoAPI.Controllers
             return Ok(new { totalEarnedPoints });
         }
 
+        [HttpGet("earned-points")]
+        public IActionResult GetEarnedPoints(DateTime? startDate, DateTime? endDate)
+        {
+            var transactions = _context.Transactions.AsQueryable();
+
+            if (startDate.HasValue)
+                transactions = transactions.Where(t => t.DateIssued >= startDate.Value);
+
+            if (endDate.HasValue)
+                transactions = transactions.Where(t => t.DateIssued < endDate.Value.Date.AddDays(1)); // Inclusive of end date
+
+            decimal earnedPoints = transactions.Sum(t => t.EarnedPoints);
+
+            return Ok(new { earnedPoints });
+        }
+
+
         [HttpGet("top-5-branches")]
         public IActionResult GetTop5BranchesByPoints()
         {
@@ -145,6 +170,25 @@ namespace AmescoAPI.Controllers
                     totalEarnedPoints = bp.TotalEarnedPoints
                 };
             }).ToList();
+
+            return Ok(result);
+        }
+
+        [HttpGet("by-date-range")]
+        public IActionResult GetTransactionsByDateRange(DateTime start, DateTime end)
+        {
+            // Make sure 'end' includes the whole day
+            var endInclusive = end.Date.AddDays(1);
+
+            var transactions = _context.Transactions
+                .Where(t => t.DateIssued >= start && t.DateIssued < endInclusive)
+                .ToList();
+
+            var result = transactions.Select(t => new
+            {
+                transaction = t,
+                products = _context.TransactionProducts.Where(tp => tp.TransactionId == t.TransactionId).ToList()
+            });
 
             return Ok(result);
         }

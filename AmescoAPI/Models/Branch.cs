@@ -15,5 +15,7 @@ namespace AmescoAPI.Models
         public string? EndDay { get; set; }
         public TimeSpan? OpenTime { get; set; }
         public TimeSpan? CloseTime { get; set; }
+
+        public decimal PointsGiven { get; set; }
     }
 }

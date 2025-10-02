@@ -156,6 +156,24 @@ namespace AmescoAPI.Controllers
             return Ok(latest);
         }
 
+        [HttpGet("redeemed-points")]
+        public IActionResult GetRedeemedPoints(DateTime? start, DateTime? end)
+        {
+            var vouchers = _context.Vouchers.AsQueryable();
+
+            if (start.HasValue)
+                vouchers = vouchers.Where(v => v.DateCreated >= start.Value);
+
+            if (end.HasValue)
+                vouchers = vouchers.Where(v => v.DateCreated < end.Value.Date.AddDays(1)); // Inclusive of end date
+
+            decimal redeemedPoints = vouchers
+                .Where(v => v.IsUsed)
+                .Sum(v => v.Value);
+
+            return Ok(new { redeemedPoints });
+        }
+
         [HttpDelete("delete")]
         public IActionResult DeleteVoucher([FromQuery] string voucherCode)
         {
