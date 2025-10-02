@@ -20,6 +20,8 @@ namespace AmescoAPI.Data
 
         public DbSet<AccessControl> AccessControls { get; set; }
 
+        public DbSet<BranchPointsHistory> BranchPointsHistory { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()

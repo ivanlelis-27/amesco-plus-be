@@ -60,6 +60,26 @@ namespace AmescoAPI.Controllers
                 _context.SaveChanges();
             }
 
+            // Update BranchPointsHistory for date-based aggregation
+            var today = DateTime.Today;
+            var history = _context.BranchPointsHistory
+                .FirstOrDefault(h => h.BranchID == request.BranchId && h.Date == today);
+
+            if (history != null)
+            {
+                history.PointsGiven += request.EarnedPoints;
+            }
+            else
+            {
+                _context.BranchPointsHistory.Add(new BranchPointsHistory
+                {
+                    BranchID = request.BranchId,
+                    Date = today,
+                    PointsGiven = request.EarnedPoints
+                });
+            }
+            _context.SaveChanges();
+
             // Return transaction and products
             var products = _context.TransactionProducts.Where(tp => tp.TransactionId == transaction.TransactionId).ToList();
             return Ok(new { transaction, products, newPointsBalance = points?.PointsBalance });

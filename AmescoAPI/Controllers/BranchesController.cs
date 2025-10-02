@@ -69,22 +69,43 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet("branches-rankings")]
-        public IActionResult GetTop5BranchesByPointsGiven()
+        public IActionResult GetTop5BranchesByPointsGiven(DateTime? startDate, DateTime? endDate)
         {
-            var topBranches = _context.Branches
-                .OrderByDescending(b => b.PointsGiven)
-                .Take(5)
-                .Select(b => new
+            var history = _context.BranchPointsHistory.AsQueryable();
+
+            if (startDate.HasValue)
+                history = history.Where(h => h.Date >= startDate.Value.Date);
+
+            if (endDate.HasValue)
+                history = history.Where(h => h.Date <= endDate.Value.Date);
+
+            var topBranches = history
+                .GroupBy(h => h.BranchID)
+                .Select(g => new
                 {
-                    branchId = b.BranchID,
-                    branchName = b.BranchName,
-                    pointsGiven = b.PointsGiven
+                    branchId = g.Key,
+                    pointsGiven = g.Sum(x => x.PointsGiven)
+                })
+                .OrderByDescending(x => x.pointsGiven)
+                .Take(5)
+                .ToList();
+
+            // Get branch names in one query
+            var branchIds = topBranches.Select(x => x.branchId).ToList();
+            var branches = _context.Branches
+                .Where(b => branchIds.Contains(b.BranchID))
+                .ToDictionary(b => b.BranchID, b => b.BranchName);
+
+            var result = topBranches
+                .Select(x => new
+                {
+                    branchId = x.branchId,
+                    branchName = branches.ContainsKey(x.branchId) ? branches[x.branchId] : "",
+                    pointsGiven = x.pointsGiven
                 })
                 .ToList();
 
-            return Ok(topBranches);
+            return Ok(result);
         }
-
-
     }
 }
