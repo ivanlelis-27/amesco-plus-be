@@ -174,6 +174,22 @@ namespace AmescoAPI.Controllers
             return Ok(new { redeemedPoints });
         }
 
+        [HttpGet("highest-redeemed-date")]
+        public IActionResult GetHighestRedeemedVoucherDate()
+        {
+            var voucher = _context.Vouchers
+                .Where(v => v.IsUsed)
+                .OrderByDescending(v => v.PointsDeducted)
+                .FirstOrDefault();
+
+            if (voucher == null || voucher.DateUsed == null)
+                return NotFound(new { message = "No redeemed vouchers found." });
+
+            // Return only the date part (yyyy-MM-dd)
+            var date = voucher.DateUsed.Value.Date.ToString("yyyy-MM-dd");
+            return Ok(new { date });
+        }
+
         [HttpDelete("delete")]
         public IActionResult DeleteVoucher([FromQuery] string voucherCode)
         {

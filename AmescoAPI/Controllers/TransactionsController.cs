@@ -107,10 +107,18 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet("top-10-ranking")]
-        public IActionResult GetTop10Ranking()
+        public IActionResult GetTop10Ranking(DateTime? startDate, DateTime? endDate)
         {
+            var transactions = _context.Transactions.AsQueryable();
+
+            if (startDate.HasValue)
+                transactions = transactions.Where(t => t.DateIssued >= startDate.Value);
+
+            if (endDate.HasValue)
+                transactions = transactions.Where(t => t.DateIssued < endDate.Value.Date.AddDays(1)); // Inclusive
+
             // Group transactions by UserId and sum EarnedPoints
-            var userPoints = _context.Transactions
+            var userPoints = transactions
                 .GroupBy(t => t.UserId)
                 .Select(g => new
                 {
