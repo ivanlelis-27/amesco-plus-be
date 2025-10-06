@@ -3,6 +3,7 @@ using AmescoAPI.Data;
 using AmescoAPI.Models;
 using System;
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace AmescoAPI.Controllers
 {
@@ -11,9 +12,11 @@ namespace AmescoAPI.Controllers
     public class VouchersController : ControllerBase
     {
         private readonly AppDbContext _context;
-        public VouchersController(AppDbContext context)
+        private readonly IConfiguration _configuration;
+        public VouchersController(AppDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         [HttpPost("create")]
@@ -188,6 +191,68 @@ namespace AmescoAPI.Controllers
             // Return only the date part (yyyy-MM-dd)
             var date = voucher.DateUsed.Value.Date.ToString("yyyy-MM-dd");
             return Ok(new { date });
+        }
+
+        [HttpGet("top-redeemer")]
+        public IActionResult GetTopRedeemer(DateTime? startDate, DateTime? endDate)
+        {
+            var vouchers = _context.Vouchers.AsQueryable();
+
+            // Filter by date range and used vouchers
+            if (startDate.HasValue)
+                vouchers = vouchers.Where(v => v.DateUsed >= startDate.Value);
+            if (endDate.HasValue)
+                vouchers = vouchers.Where(v => v.DateUsed < endDate.Value.Date.AddDays(1));
+            vouchers = vouchers.Where(v => v.IsUsed);
+
+            // Group by UserId and sum PointsDeducted
+            var topRedeemer = vouchers
+                .GroupBy(v => v.UserId)
+                .Select(g => new
+                {
+                    UserId = g.Key,
+                    PointsRedeemed = g.Sum(x => x.PointsDeducted)
+                })
+                .OrderByDescending(x => x.PointsRedeemed)
+                .FirstOrDefault();
+
+            if (topRedeemer == null)
+                return Ok(new { name = "", pointsRedeemed = 0, profileImage = "No Image Found" });
+
+            // Get user info
+            var user = _context.Users.FirstOrDefault(u => u.Id == topRedeemer.UserId);
+            if (user == null)
+                return Ok(new { name = "", pointsRedeemed = topRedeemer.PointsRedeemed, profileImage = "No Image Found" });
+
+            // Get profile image from AmescoImages db
+            string profileImage = "No Image Found";
+            try
+            {
+                var imagesConnectionString = _configuration.GetConnectionString("AmescoImagesConnection");
+                var optionsBuilder = new DbContextOptionsBuilder<ImagesDbContext>();
+                optionsBuilder.UseSqlServer(imagesConnectionString);
+
+                using (var imagesContext = new ImagesDbContext(optionsBuilder.Options))
+                {
+                    var userImage = imagesContext.UserImages
+                        .FirstOrDefault(ui => ui.MemberId == user.MemberId);
+                    if (userImage != null && userImage.ProfileImage != null && userImage.ProfileImage.Length > 0)
+                        profileImage = Convert.ToBase64String(userImage.ProfileImage);
+                    else
+                        profileImage = "No Image Found";
+                }
+            }
+            catch
+            {
+                profileImage = "No Image Found";
+            }
+
+            return Ok(new
+            {
+                name = $"{user.FirstName} {user.LastName}",
+                pointsRedeemed = topRedeemer.PointsRedeemed,
+                profileImage
+            });
         }
 
         [HttpDelete("delete")]
