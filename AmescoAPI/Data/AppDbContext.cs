@@ -22,6 +22,8 @@ namespace AmescoAPI.Data
 
         public DbSet<BranchPointsHistory> BranchPointsHistory { get; set; }
 
+        public DbSet<Promo> Promos { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()
