@@ -84,5 +84,25 @@ namespace AmescoAPI.Controllers
 
             return Ok(result);
         }
+
+        [HttpDelete]
+        [Route("delete/{promoId}")]
+        public async Task<IActionResult> DeletePromo(int promoId)
+        {
+            // Remove promo from main DB
+            var promo = await _mainDb.Promos.FindAsync(promoId);
+            if (promo == null)
+                return NotFound("Promo not found.");
+
+            _mainDb.Promos.Remove(promo);
+            await _mainDb.SaveChangesAsync();
+
+            // Remove associated image(s) from images DB
+            var images = _imagesDb.PromoImages.Where(img => img.PromoId == promoId);
+            _imagesDb.PromoImages.RemoveRange(images);
+            await _imagesDb.SaveChangesAsync();
+
+            return Ok(new { message = "Promo deleted successfully." });
+        }
     }
 }
