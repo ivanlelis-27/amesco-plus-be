@@ -24,6 +24,8 @@ namespace AmescoAPI.Data
 
         public DbSet<Promo> Promos { get; set; }
 
+        public DbSet<Notification> Notifications { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()

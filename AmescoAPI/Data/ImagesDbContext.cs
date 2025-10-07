@@ -11,11 +11,15 @@ namespace AmescoAPI.Data
 
         public DbSet<PromoImage> PromoImages { get; set; }
 
+        public DbSet<NotificationImage> NotificationImages { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<AdBanner>().ToTable("AdBanners");
             modelBuilder.Entity<UserImage>().ToTable("UserImages");
             modelBuilder.Entity<PromoImage>().ToTable("PromoImages");
+            modelBuilder.Entity<NotificationImage>().ToTable("NotificationImages");
+            modelBuilder.Entity<NotificationImage>().HasKey(n => n.ImageId);
         }
     }
 }
