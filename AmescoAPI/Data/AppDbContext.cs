@@ -26,6 +26,8 @@ namespace AmescoAPI.Data
 
         public DbSet<Notification> Notifications { get; set; }
 
+        public DbSet<NotificationLike> NotificationLikes { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()
@@ -39,6 +41,8 @@ namespace AmescoAPI.Data
             modelBuilder.Entity<Branch>()
                 .Property(b => b.Longitude)
                 .HasColumnType("decimal(18,15)");
+
+            modelBuilder.Entity<NotificationLike>().HasKey(nl => nl.LikeId);
         }
 
 

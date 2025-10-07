@@ -11,5 +11,7 @@ namespace AmescoAPI.Models
         public DateTime ScheduledAt { get; set; }
         public bool IncludeImage { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public int LikeCount { get; set; }
     }
 }

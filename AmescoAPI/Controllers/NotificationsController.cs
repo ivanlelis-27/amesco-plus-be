@@ -65,15 +65,91 @@ namespace AmescoAPI.Controllers
             return Ok(new { notification.NotificationId });
         }
 
+        [HttpPost]
+        [Route("like")]
+        public async Task<IActionResult> LikeNotification(int notificationId, int userId)
+        {
+            var existingLike = await _db.NotificationLikes
+                .FirstOrDefaultAsync(l => l.NotificationId == notificationId && l.UserId == userId);
+
+            if (existingLike != null)
+                return BadRequest("Already liked.");
+
+            var like = new NotificationLike
+            {
+                NotificationId = notificationId,
+                UserId = userId,
+                LikedAt = DateTime.UtcNow
+            };
+            _db.NotificationLikes.Add(like);
+
+            var notification = await _db.Notifications.FindAsync(notificationId);
+            if (notification != null)
+            {
+                notification.LikeCount += 1;
+                await _db.SaveChangesAsync();
+            }
+
+            return Ok(new { notificationId, userId });
+        }
+
+        [HttpPost]
+        [Route("unlike")]
+        public async Task<IActionResult> UnlikeNotification(int notificationId, int userId)
+        {
+            var existingLike = await _db.NotificationLikes
+                .FirstOrDefaultAsync(l => l.NotificationId == notificationId && l.UserId == userId);
+
+            if (existingLike == null)
+                return BadRequest("Like does not exist.");
+
+            _db.NotificationLikes.Remove(existingLike);
+
+            var notification = await _db.Notifications.FindAsync(notificationId);
+            if (notification != null && notification.LikeCount > 0)
+            {
+                notification.LikeCount -= 1;
+                await _db.SaveChangesAsync();
+            }
+
+            return Ok(new { notificationId, userId });
+        }
+
         [HttpGet]
         [Route("list")]
-        public async Task<IActionResult> GetNotifications()
+        public async Task<IActionResult> GetNotifications(int userId)
         {
             var notifications = await _db.Notifications
                 .OrderByDescending(n => n.CreatedAt)
                 .ToListAsync();
 
-            return Ok(notifications);
+            var notificationIds = notifications.Select(n => n.NotificationId).ToList();
+            var images = await _imagesDb.NotificationImages
+                .Where(img => notificationIds.Contains(img.NotificationId))
+                .ToListAsync();
+
+            var likedIds = await _db.NotificationLikes
+                .Where(l => l.UserId == userId)
+                .Select(l => l.NotificationId)
+                .ToListAsync();
+
+            var result = notifications.Select(n => new
+            {
+                n.NotificationId,
+                n.Title,
+                n.Description,
+                n.MessageBody,
+                n.ScheduledAt,
+                n.IncludeImage,
+                n.CreatedAt,
+                n.LikeCount,
+                Liked = likedIds.Contains(n.NotificationId),
+                ImageBase64 = images.FirstOrDefault(img => img.NotificationId == n.NotificationId)?.ImageData != null
+                    ? Convert.ToBase64String(images.FirstOrDefault(img => img.NotificationId == n.NotificationId).ImageData)
+                    : null
+            });
+
+            return Ok(result);
         }
     }
 }
