@@ -86,10 +86,10 @@ namespace AmescoAPI.Controllers
             });
         }
 
-        [HttpGet("count")]
-        public IActionResult GetVoucherCount()
+        [HttpGet("count-used")]
+        public IActionResult GetUsedVoucherCount()
         {
-            int count = _context.Vouchers.Count();
+            int count = _context.Vouchers.Count(v => v.IsUsed);
             return Ok(new { count });
         }
 
