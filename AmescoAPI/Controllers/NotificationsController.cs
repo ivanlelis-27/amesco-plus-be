@@ -151,5 +151,31 @@ namespace AmescoAPI.Controllers
 
             return Ok(result);
         }
+
+        [HttpDelete]
+        [Route("delete/{notificationId}")]
+        public async Task<IActionResult> DeleteNotification(int notificationId)
+        {
+            // Find notification
+            var notification = await _db.Notifications.FindAsync(notificationId);
+            if (notification == null)
+                return NotFound("Notification not found.");
+
+            // Remove associated likes
+            var likes = _db.NotificationLikes.Where(l => l.NotificationId == notificationId);
+            _db.NotificationLikes.RemoveRange(likes);
+
+            // Remove associated images
+            var images = _imagesDb.NotificationImages.Where(img => img.NotificationId == notificationId);
+            _imagesDb.NotificationImages.RemoveRange(images);
+
+            // Remove notification
+            _db.Notifications.Remove(notification);
+
+            await _db.SaveChangesAsync();
+            await _imagesDb.SaveChangesAsync();
+
+            return Ok(new { message = "Notification deleted successfully." });
+        }
     }
 }
