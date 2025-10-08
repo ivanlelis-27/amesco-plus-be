@@ -152,6 +152,56 @@ namespace AmescoAPI.Controllers
             return Ok(result);
         }
 
+        [HttpPut]
+        [Route("edit/{notificationId}")]
+        public async Task<IActionResult> EditScheduledNotification(int notificationId, [FromForm] CreateNotificationRequest request)
+        {
+            var notification = await _db.Notifications.FindAsync(notificationId);
+            if (notification == null)
+                return NotFound("Notification not found.");
+
+            // Only allow editing if scheduled time is in the future
+            if (notification.ScheduledAt <= DateTime.UtcNow)
+                return BadRequest("Cannot edit notifications that are already sent or in history.");
+
+            notification.Title = request.Title;
+            notification.Description = request.Description;
+            notification.MessageBody = request.MessageBody;
+            notification.ScheduledAt = request.ScheduledAt;
+            notification.IncludeImage = request.IncludeImage;
+
+            // If image is included and provided, update or add image
+            if (request.IncludeImage && request.Image != null && request.Image.Length > 0)
+            {
+                var existingImage = await _imagesDb.NotificationImages
+                    .FirstOrDefaultAsync(img => img.NotificationId == notificationId);
+
+                using var ms = new MemoryStream();
+                await request.Image.CopyToAsync(ms);
+
+                if (existingImage != null)
+                {
+                    existingImage.ImageData = ms.ToArray();
+                    existingImage.UploadedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    var newImage = new NotificationImage
+                    {
+                        NotificationId = notificationId,
+                        ImageData = ms.ToArray(),
+                        UploadedAt = DateTime.UtcNow
+                    };
+                    _imagesDb.NotificationImages.Add(newImage);
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            await _imagesDb.SaveChangesAsync();
+
+            return Ok(new { message = "Notification updated successfully." });
+        }
+
         [HttpDelete]
         [Route("delete/{notificationId}")]
         public async Task<IActionResult> DeleteNotification(int notificationId)
