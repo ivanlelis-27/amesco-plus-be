@@ -368,10 +368,13 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet("new-members")]
-        public IActionResult GetNewMembersCountThisMonth()
+        public IActionResult GetNewMembersCountByDateRange(DateTime? startDate, DateTime? endDate)
         {
-            var oneMonthAgo = DateTime.Now.AddMonths(-1);
-            int count = _context.Users.Count(u => u.CreatedAt >= oneMonthAgo);
+            // If no dates are provided, default to last 30 days
+            var from = startDate ?? DateTime.Now.AddDays(-30);
+            var to = endDate ?? DateTime.Now;
+
+            int count = _context.Users.Count(u => u.CreatedAt >= from && u.CreatedAt <= to);
             return Ok(new { count });
         }
 

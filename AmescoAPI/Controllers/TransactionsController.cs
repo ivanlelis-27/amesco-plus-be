@@ -88,15 +88,21 @@ namespace AmescoAPI.Controllers
         [HttpGet]
         public IActionResult GetAllTransactions()
         {
-            var transactions = _context.Transactions.ToList();
-            var result = transactions.Select(t => new
-            {
-                transaction = t,
-                products = _context.TransactionProducts.Where(tp => tp.TransactionId == t.TransactionId).ToList()
-            });
+            var result = _context.Transactions
+                .Select(t => new
+                {
+                    transactionId = t.TransactionId,
+                    dateIssued = t.DateIssued,
+                    earnedPoints = t.EarnedPoints,
+                    userName = _context.Users.Where(u => u.Id == t.UserId).Select(u => u.FirstName + " " + u.LastName).FirstOrDefault(),
+                    branchName = _context.Branches.Where(b => b.BranchID == t.BranchId).Select(b => b.BranchName).FirstOrDefault(),
+                    products = _context.TransactionProducts.Where(tp => tp.TransactionId == t.TransactionId).ToList()
+                })
+                .ToList();
+
             return Ok(result);
         }
-
+        
         [HttpGet("{id}")]
         public IActionResult GetTransaction(int id)
         {

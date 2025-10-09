@@ -115,6 +115,33 @@ namespace AmescoAPI.Controllers
             return Ok(new { notificationId, userId });
         }
 
+        [HttpGet("most-liked")]
+        public async Task<IActionResult> GetMostLikedNotification()
+        {
+            var notification = await _db.Notifications
+                .OrderByDescending(n => n.LikeCount)
+                .FirstOrDefaultAsync();
+
+            if (notification == null)
+                return NotFound("No notifications found.");
+
+            var image = await _imagesDb.NotificationImages
+                .FirstOrDefaultAsync(img => img.NotificationId == notification.NotificationId);
+
+            return Ok(new
+            {
+                notification.NotificationId,
+                notification.Title,
+                notification.Description,
+                notification.MessageBody,
+                notification.ScheduledAt,
+                notification.IncludeImage,
+                notification.CreatedAt,
+                notification.LikeCount,
+                ImageBase64 = image?.ImageData != null ? Convert.ToBase64String(image.ImageData) : null
+            });
+        }
+
         [HttpGet]
         [Route("list")]
         public async Task<IActionResult> GetNotifications(int userId)
