@@ -8,7 +8,7 @@ namespace AmescoAPI.Models
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int VoucherNumber { get; set; }
         public long VoucherId { get; set; }
-        public int UserId { get; set; }
+        public string UserId { get; set; }
         public string VoucherCode { get; set; }
         public decimal Value { get; set; }
         public decimal PointsDeducted { get; set; }

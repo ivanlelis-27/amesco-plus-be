@@ -67,7 +67,7 @@ namespace AmescoAPI.Controllers
 
         [HttpPost]
         [Route("like")]
-        public async Task<IActionResult> LikeNotification(int notificationId, int userId)
+        public async Task<IActionResult> LikeNotification(int notificationId, string userId)
         {
             var existingLike = await _db.NotificationLikes
                 .FirstOrDefaultAsync(l => l.NotificationId == notificationId && l.UserId == userId);
@@ -95,7 +95,7 @@ namespace AmescoAPI.Controllers
 
         [HttpPost]
         [Route("unlike")]
-        public async Task<IActionResult> UnlikeNotification(int notificationId, int userId)
+        public async Task<IActionResult> UnlikeNotification(int notificationId, string userId)
         {
             var existingLike = await _db.NotificationLikes
                 .FirstOrDefaultAsync(l => l.NotificationId == notificationId && l.UserId == userId);
@@ -144,7 +144,7 @@ namespace AmescoAPI.Controllers
 
         [HttpGet]
         [Route("list")]
-        public async Task<IActionResult> GetNotifications(int userId)
+        public async Task<IActionResult> GetNotifications(string userId)
         {
             var notifications = await _db.Notifications
                 .OrderByDescending(n => n.CreatedAt)
@@ -171,6 +171,36 @@ namespace AmescoAPI.Controllers
                 n.CreatedAt,
                 n.LikeCount,
                 Liked = likedIds.Contains(n.NotificationId),
+                ImageBase64 = images.FirstOrDefault(img => img.NotificationId == n.NotificationId)?.ImageData != null
+                    ? Convert.ToBase64String(images.FirstOrDefault(img => img.NotificationId == n.NotificationId).ImageData)
+                    : null
+            });
+
+            return Ok(result);
+        }
+
+        [HttpGet("all")]
+        public async Task<IActionResult> GetAllNotifications()
+        {
+            var notifications = await _db.Notifications
+                .OrderByDescending(n => n.CreatedAt)
+                .ToListAsync();
+
+            var notificationIds = notifications.Select(n => n.NotificationId).ToList();
+            var images = await _imagesDb.NotificationImages
+                .Where(img => notificationIds.Contains(img.NotificationId))
+                .ToListAsync();
+
+            var result = notifications.Select(n => new
+            {
+                n.NotificationId,
+                n.Title,
+                n.Description,
+                n.MessageBody,
+                n.ScheduledAt,
+                n.IncludeImage,
+                n.CreatedAt,
+                n.LikeCount,
                 ImageBase64 = images.FirstOrDefault(img => img.NotificationId == n.NotificationId)?.ImageData != null
                     ? Convert.ToBase64String(images.FirstOrDefault(img => img.NotificationId == n.NotificationId).ImageData)
                     : null

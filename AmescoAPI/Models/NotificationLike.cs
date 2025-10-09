@@ -6,7 +6,7 @@ namespace AmescoAPI.Models
     {
         public int LikeId { get; set; }
         public int NotificationId { get; set; }
-        public int UserId { get; set; } // <-- Use UserId instead of MemberId
+        public string UserId { get; set; } // <-- Use UserId instead of MemberId
         public DateTime LikedAt { get; set; }
     }
 }

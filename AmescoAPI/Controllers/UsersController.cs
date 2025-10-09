@@ -60,7 +60,7 @@ namespace AmescoAPI.Controllers
                 return NotFound();
             }
 
-            var points = _context.Points.FirstOrDefault(p => p.UserId == userId);
+            var points = _context.Points.FirstOrDefault(p => p.UserId == user.MemberId);
 
 
             dynamic? userImage = null;
@@ -100,10 +100,10 @@ namespace AmescoAPI.Controllers
             });
         }
 
-        [HttpGet("user/{userId}")]
-        public IActionResult GetVouchersForUser(int userId)
+        [HttpGet("user/{memberId}")]
+        public IActionResult GetVouchersForUser(string memberId)
         {
-            var vouchers = _context.Vouchers.Where(v => v.UserId == userId).ToList();
+            var vouchers = _context.Vouchers.Where(v => v.UserId == memberId).ToList();
             return Ok(vouchers);
         }
 
@@ -131,7 +131,7 @@ namespace AmescoAPI.Controllers
                     u.MemberId,
                     u.CreatedAt,
                     points = _context.Points
-                        .Where(p => p.UserId == u.Id)
+                        .Where(p => p.UserId == u.MemberId)
                         .Select(p => p.PointsBalance)
                         .FirstOrDefault(),
                     profileImage = images.ContainsKey(u.MemberId)
@@ -251,7 +251,7 @@ namespace AmescoAPI.Controllers
             // Get series number from MemberId
             string series = user.MemberId.Contains('-') ? user.MemberId.Split('-').Last() : "";
             string fullName = $"{user.FirstName} {user.LastName}";
-            var points = _context.Points.FirstOrDefault(p => p.UserId == user.Id);
+            var points = _context.Points.FirstOrDefault(p => p.UserId == user.MemberId);
             decimal pointsBalance = points?.PointsBalance ?? 0;
 
             // Build QR payload (vertical format)

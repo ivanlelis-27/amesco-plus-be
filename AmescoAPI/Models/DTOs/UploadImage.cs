@@ -4,7 +4,7 @@ namespace AmescoAPI.Models.DTOs
 {
     public class UploadImage
     {
-        public int UserId { get; set; }
+        public string UserId { get; set; }
         public IFormFile Image { get; set; }
     }
 }

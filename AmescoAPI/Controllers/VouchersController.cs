@@ -54,7 +54,7 @@ namespace AmescoAPI.Controllers
             _context.Vouchers.Add(voucher);
             _context.SaveChanges();
 
-            var user = _context.Users.FirstOrDefault(u => u.Id == request.UserId);
+            var user = _context.Users.FirstOrDefault(u => u.MemberId == request.UserId);
             string email = user?.Email ?? "";
             string memberId = user?.MemberId ?? "";
             string seriesNumber = memberId.Contains('-') ? memberId.Split('-').Last() : "";
@@ -148,7 +148,7 @@ namespace AmescoAPI.Controllers
                 {
                     points = v.PointsDeducted,
                     member = _context.Users
-                        .Where(u => u.Id == v.UserId)
+                        .Where(u => u.MemberId == v.UserId)
                         .Select(u => $"{u.FirstName} {u.LastName}")
                         .FirstOrDefault() ?? "",
                     voucherCode = v.VoucherCode,
@@ -220,7 +220,7 @@ namespace AmescoAPI.Controllers
                 return Ok(new { name = "", pointsRedeemed = 0, profileImage = "No Image Found" });
 
             // Get user info
-            var user = _context.Users.FirstOrDefault(u => u.Id == topRedeemer.UserId);
+            var user = _context.Users.FirstOrDefault(u => u.MemberId == topRedeemer.UserId);
             if (user == null)
                 return Ok(new { name = "", pointsRedeemed = topRedeemer.PointsRedeemed, profileImage = "No Image Found" });
 

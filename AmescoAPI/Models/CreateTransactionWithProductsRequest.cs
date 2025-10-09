@@ -6,7 +6,7 @@ namespace AmescoAPI.Models
     public class CreateTransactionWithProductsRequest
     {
         [Required]
-        public int UserId { get; set; }
+        public string UserId { get; set; }
         [Required]
         public decimal EarnedPoints { get; set; }
         public List<ProductDto> Products { get; set; } = new();

@@ -94,15 +94,49 @@ namespace AmescoAPI.Controllers
                     transactionId = t.TransactionId,
                     dateIssued = t.DateIssued,
                     earnedPoints = t.EarnedPoints,
-                    userName = _context.Users.Where(u => u.Id == t.UserId).Select(u => u.FirstName + " " + u.LastName).FirstOrDefault(),
-                    branchName = _context.Branches.Where(b => b.BranchID == t.BranchId).Select(b => b.BranchName).FirstOrDefault(),
-                    products = _context.TransactionProducts.Where(tp => tp.TransactionId == t.TransactionId).ToList()
+                    memberId = t.UserId,
+                    userName = _context.Users
+                        .Where(u => u.MemberId == t.UserId)
+                        .Select(u => u.FirstName + " " + u.LastName)
+                        .FirstOrDefault(),
+                    branchName = _context.Branches
+                        .Where(b => b.BranchID == t.BranchId)
+                        .Select(b => b.BranchName)
+                        .FirstOrDefault(),
+                    products = _context.TransactionProducts
+                        .Where(tp => tp.TransactionId == t.TransactionId)
+                        .ToList()
                 })
                 .ToList();
 
             return Ok(result);
         }
-        
+
+        [HttpGet("my-transactions")]
+        public IActionResult GetMyTransactions([FromQuery] string memberId)
+        {
+            var transactions = _context.Transactions
+                .Where(t => t.UserId == memberId)
+                .OrderByDescending(t => t.DateIssued)
+                .ToList();
+
+            var result = transactions.Select(t => new
+            {
+                transactionId = t.TransactionId,
+                dateIssued = t.DateIssued,
+                earnedPoints = t.EarnedPoints,
+                branchName = _context.Branches
+                    .Where(b => b.BranchID == t.BranchId)
+                    .Select(b => b.BranchName)
+                    .FirstOrDefault(),
+                products = _context.TransactionProducts
+                    .Where(tp => tp.TransactionId == t.TransactionId)
+                    .ToList()
+            });
+
+            return Ok(result);
+        }
+
         [HttpGet("{id}")]
         public IActionResult GetTransaction(int id)
         {
@@ -139,7 +173,7 @@ namespace AmescoAPI.Controllers
             var ranking = userPoints
                 .Select((up, index) =>
                 {
-                    var user = _context.Users.FirstOrDefault(u => u.Id == up.UserId);
+                    var user = _context.Users.FirstOrDefault(u => u.MemberId == up.UserId);
                     return new
                     {
                         rank = index + 1,

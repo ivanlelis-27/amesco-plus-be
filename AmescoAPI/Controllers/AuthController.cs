@@ -58,7 +58,7 @@ namespace AmescoAPI.Controllers
                 LastName = request.LastName,
                 Mobile = request.Mobile,
                 CreatedAt = DateTime.Now,
-                MemberId = request.MemberId // <-- Use the memberId from the request!
+                MemberId = request.MemberId 
             };
 
             _context.Users.Add(user);
@@ -66,7 +66,7 @@ namespace AmescoAPI.Controllers
 
             var points = new Points
             {
-                UserId = user.Id,
+                UserId = user.MemberId,
                 PointsBalance = 0,
                 UpdatedAt = DateTime.Now
             };
@@ -120,7 +120,7 @@ namespace AmescoAPI.Controllers
 
                 var points = new Points
                 {
-                    UserId = user.Id,
+                    UserId = user.MemberId,
                     PointsBalance = 0,
                     UpdatedAt = DateTime.Now
                 };
