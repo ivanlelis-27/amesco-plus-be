@@ -24,7 +24,7 @@ namespace AmescoAPI.Controllers
         private string GenerateMemberId()
         {
             var random = new Random();
-            string randomDigits = string.Concat(Enumerable.Range(0, 10).Select(_ => random.Next(0, 10).ToString()));
+            string randomDigits = string.Concat(Enumerable.Range(0, 9).Select(_ => random.Next(0, 10).ToString()));
             int seriesCounter = _context.Users.Count() + 1;
             return $"{randomDigits}-{seriesCounter}";
         }
