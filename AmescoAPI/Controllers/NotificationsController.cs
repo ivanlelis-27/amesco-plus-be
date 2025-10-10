@@ -116,9 +116,18 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet("most-liked")]
-        public async Task<IActionResult> GetMostLikedNotification()
+        public async Task<IActionResult> GetMostLikedNotification([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
         {
-            var notification = await _db.Notifications
+            // Default to all dates if not provided
+            var query = _db.Notifications.AsQueryable();
+
+            if (startDate.HasValue)
+                query = query.Where(n => n.CreatedAt >= startDate.Value);
+
+            if (endDate.HasValue)
+                query = query.Where(n => n.CreatedAt <= endDate.Value);
+
+            var notification = await query
                 .OrderByDescending(n => n.LikeCount)
                 .FirstOrDefaultAsync();
 
