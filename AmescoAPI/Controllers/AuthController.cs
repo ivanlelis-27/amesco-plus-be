@@ -24,9 +24,30 @@ namespace AmescoAPI.Controllers
         private string GenerateMemberId()
         {
             var random = new Random();
-            string randomDigits = string.Concat(Enumerable.Range(0, 9).Select(_ => random.Next(0, 10).ToString()));
-            int seriesCounter = _context.Users.Count() + 1;
-            return $"{randomDigits}-{seriesCounter}";
+            string randomDigits = string.Concat(Enumerable.Range(0, 9)
+                .Select(_ => random.Next(0, 10).ToString()));
+
+            int lastSuffix = 0;
+
+            if (_context.Users.Any())
+            {
+                // Load MemberIds into memory, then extract numeric suffixes safely
+                var suffixes = _context.Users
+                    .AsEnumerable() // ← this makes EF stop translating to SQL
+                    .Select(u =>
+                    {
+                        var parts = u.MemberId.Split('-');
+                        return parts.Length > 1 && int.TryParse(parts[1], out int suffix)
+                            ? suffix
+                            : 0;
+                    })
+                    .ToList();
+
+                lastSuffix = suffixes.Max();
+            }
+
+            int nextSuffix = lastSuffix + 1;
+            return $"{randomDigits}-{nextSuffix}";
         }
 
         public AuthController(AppDbContext context, IEmailService emailService)
@@ -58,7 +79,7 @@ namespace AmescoAPI.Controllers
                 LastName = request.LastName,
                 Mobile = request.Mobile,
                 CreatedAt = DateTime.Now,
-                MemberId = request.MemberId 
+                MemberId = request.MemberId
             };
 
             _context.Users.Add(user);

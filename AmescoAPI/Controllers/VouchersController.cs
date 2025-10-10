@@ -139,10 +139,19 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet("latest-transactions")]
-        public IActionResult GetLatestTransactions()
+        public IActionResult GetLatestTransactions(DateTime? startDate, DateTime? endDate)
         {
-            var latest = _context.Vouchers
-                .OrderByDescending(v => v.DateCreated)
+            var vouchers = _context.Vouchers
+                .Where(v => v.IsUsed);
+
+            if (startDate.HasValue)
+                vouchers = vouchers.Where(v => v.DateUsed >= startDate.Value);
+
+            if (endDate.HasValue)
+                vouchers = vouchers.Where(v => v.DateUsed < endDate.Value.Date.AddDays(1)); // Inclusive
+
+            var latest = vouchers
+                .OrderByDescending(v => v.DateUsed)
                 .Take(5)
                 .Select(v => new
                 {
@@ -152,7 +161,7 @@ namespace AmescoAPI.Controllers
                         .Select(u => $"{u.FirstName} {u.LastName}")
                         .FirstOrDefault() ?? "",
                     voucherCode = v.VoucherCode,
-                    createdOn = v.DateCreated
+                    dateUsed = v.DateUsed
                 })
                 .ToList();
 
@@ -178,17 +187,23 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpGet("highest-redeemed-date")]
-        public IActionResult GetHighestRedeemedVoucherDate()
+        public IActionResult GetHighestRedeemedVoucherDate(DateTime? startDate, DateTime? endDate)
         {
-            var voucher = _context.Vouchers
-                .Where(v => v.IsUsed)
+            var vouchers = _context.Vouchers.Where(v => v.IsUsed);
+
+            if (startDate.HasValue)
+                vouchers = vouchers.Where(v => v.DateUsed >= startDate.Value);
+
+            if (endDate.HasValue)
+                vouchers = vouchers.Where(v => v.DateUsed < endDate.Value.Date.AddDays(1)); // Inclusive
+
+            var voucher = vouchers
                 .OrderByDescending(v => v.PointsDeducted)
                 .FirstOrDefault();
 
             if (voucher == null || voucher.DateUsed == null)
                 return NotFound(new { message = "No redeemed vouchers found." });
 
-            // Return only the date part (yyyy-MM-dd)
             var date = voucher.DateUsed.Value.Date.ToString("yyyy-MM-dd");
             return Ok(new { date });
         }

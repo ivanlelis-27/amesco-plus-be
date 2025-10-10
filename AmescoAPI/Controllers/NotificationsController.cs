@@ -122,10 +122,10 @@ namespace AmescoAPI.Controllers
             var query = _db.Notifications.AsQueryable();
 
             if (startDate.HasValue)
-                query = query.Where(n => n.CreatedAt >= startDate.Value);
+                query = query.Where(n => n.ScheduledAt >= startDate.Value);
 
             if (endDate.HasValue)
-                query = query.Where(n => n.CreatedAt <= endDate.Value);
+                query = query.Where(n => n.ScheduledAt <= endDate.Value);
 
             var notification = await query
                 .OrderByDescending(n => n.LikeCount)
