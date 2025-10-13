@@ -32,6 +32,8 @@ namespace AmescoAPI.Data
 
         public DbSet<Announcement> Announcements { get; set; }
 
+        public DbSet<AnnouncementProduct> AnnouncementProducts { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()

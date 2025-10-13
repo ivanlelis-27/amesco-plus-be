@@ -9,5 +9,6 @@ namespace AmescoAPI.Models
         public int? PromoGroupId { get; set; }
         public DateTime DateCreated { get; set; }
         public DateTime? DateUpdated { get; set; }
+        public int? SortIndex { get; set; } // <-- Add this line
     }
 }

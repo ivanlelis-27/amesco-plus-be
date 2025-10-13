@@ -24,7 +24,10 @@ namespace AmescoAPI.Controllers
             [FromForm] string title,
             [FromForm] string description,
             [FromForm] int? promoGroupId,
-            [FromForm] IFormFile? image)
+            [FromForm] IFormFile? image,
+            [FromForm] int? sortIndex,
+            [FromForm] List<int> promoIds // <-- Accept promoIds from the request
+        )
         {
             int? bannerImageId = null;
 
@@ -53,13 +56,93 @@ namespace AmescoAPI.Controllers
                 PromoGroupId = promoGroupId,
                 BannerImageId = bannerImageId,
                 DateCreated = DateTime.Now,
-                DateUpdated = null
+                DateUpdated = null,
+                SortIndex = sortIndex
             };
 
             _context.Announcements.Add(announcement);
             await _context.SaveChangesAsync();
 
+            // Insert into AnnouncementProducts table
+            if (promoIds != null && promoIds.Count > 0)
+            {
+                foreach (var promoId in promoIds)
+                {
+                    var ap = new AnnouncementProduct
+                    {
+                        AnnouncementId = announcement.AnnouncementId,
+                        PromoId = promoId
+                    };
+                    _context.Set<AnnouncementProduct>().Add(ap);
+                }
+                await _context.SaveChangesAsync();
+            }
+
             return Ok(new { announcement.AnnouncementId });
+        }
+
+        [HttpGet]
+        public IActionResult GetAllAnnouncements()
+        {
+            var announcements = _context.Announcements
+                .OrderByDescending(a => a.DateCreated)
+                .ToList();
+
+            var bannerIds = announcements
+                .Where(a => a.BannerImageId.HasValue)
+                .Select(a => a.BannerImageId.Value)
+                .Distinct()
+                .ToList();
+
+            var banners = _imagesDb.AdBanners
+                .Where(b => bannerIds.Contains(b.Id))
+                .ToList();
+
+            var result = announcements.Select(a => new
+            {
+                a.AnnouncementId,
+                a.Title,
+                a.Description,
+                a.PromoGroupId,
+                a.BannerImageId,
+                a.DateCreated,
+                a.DateUpdated,
+                a.SortIndex, // <-- Include SortIndex in response
+                imageBase64 = a.BannerImageId.HasValue
+                    ? banners.FirstOrDefault(b => b.Id == a.BannerImageId.Value)?.ImageData != null
+                        ? Convert.ToBase64String(banners.FirstOrDefault(b => b.Id == a.BannerImageId.Value).ImageData)
+                        : null
+                    : null
+            });
+
+            return Ok(result);
+        }
+
+        [HttpPut("edit-index/{id}")]
+        public async Task<IActionResult> EditAnnouncementIndex(int id, [FromBody] int? sortIndex)
+        {
+            var announcement = await _context.Announcements.FindAsync(id);
+            if (announcement == null)
+                return NotFound(new { message = "Announcement not found." });
+
+            announcement.SortIndex = sortIndex;
+            announcement.DateUpdated = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { announcement.AnnouncementId, announcement.SortIndex });
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteAnnouncement(int id)
+        {
+            var announcement = await _context.Announcements.FindAsync(id);
+            if (announcement == null)
+                return NotFound(new { message = "Announcement not found." });
+
+            _context.Announcements.Remove(announcement);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Announcement deleted successfully." });
         }
     }
 }
