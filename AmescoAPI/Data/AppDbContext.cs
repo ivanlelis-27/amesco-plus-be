@@ -28,6 +28,10 @@ namespace AmescoAPI.Data
 
         public DbSet<NotificationLike> NotificationLikes { get; set; }
 
+        public DbSet<PromoGroup> PromoGroups { get; set; }
+
+        public DbSet<Announcement> Announcements { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Voucher>()
