@@ -85,6 +85,75 @@ namespace AmescoAPI.Controllers
             return Ok(result);
         }
 
+        [HttpGet("with-group")]
+        public async Task<IActionResult> GetPromosWithGroup()
+        {
+            var promos = await _mainDb.Promos
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+
+            var promoIds = promos.Select(p => p.PromoId).ToList();
+
+            var images = await _imagesDb.PromoImages
+                .Where(img => promoIds.Contains(img.PromoId))
+                .ToListAsync();
+
+            // Get all AnnouncementProducts for these promos
+            var announcementProducts = _mainDb.AnnouncementProducts
+                .Where(ap => promoIds.Contains(ap.PromoId))
+                .ToList();
+
+            // Get all relevant Announcements
+            var announcementIds = announcementProducts.Select(ap => ap.AnnouncementId).Distinct().ToList();
+            var announcements = _mainDb.Announcements
+                .Where(a => announcementIds.Contains(a.AnnouncementId))
+                .ToList();
+
+            // Get all relevant PromoGroups
+            var promoGroupIds = announcements
+                .Where(a => a.PromoGroupId.HasValue)
+                .Select(a => a.PromoGroupId.Value)
+                .Distinct()
+                .ToList();
+            var promoGroups = _mainDb.PromoGroups
+                .Where(pg => promoGroupIds.Contains(pg.PromoGroupId))
+                .ToList();
+
+            var result = promos.Select(p =>
+            {
+                // Find all announcements this promo is linked to
+                var aps = announcementProducts.Where(ap => ap.PromoId == p.PromoId).ToList();
+                var groupNames = aps
+                    .Select(ap =>
+                    {
+                        var announcement = announcements.FirstOrDefault(a => a.AnnouncementId == ap.AnnouncementId);
+                        if (announcement != null && announcement.PromoGroupId.HasValue)
+                        {
+                            return promoGroups.FirstOrDefault(pg => pg.PromoGroupId == announcement.PromoGroupId.Value)?.Name;
+                        }
+                        return null;
+                    })
+                    .Where(name => !string.IsNullOrEmpty(name))
+                    .Distinct()
+                    .ToList();
+
+                return new
+                {
+                    p.PromoId,
+                    p.BrandItemName,
+                    p.Price,
+                    p.Unit,
+                    p.CreatedAt,
+                    ImageBase64 = images.FirstOrDefault(img => img.PromoId == p.PromoId)?.ImageData != null
+                        ? Convert.ToBase64String(images.FirstOrDefault(img => img.PromoId == p.PromoId).ImageData)
+                        : null,
+                    promoGroupNames = groupNames // <-- List of all promo group names
+                };
+            });
+
+            return Ok(result);
+        }
+
         [HttpDelete]
         [Route("delete/{promoId}")]
         public async Task<IActionResult> DeletePromo(int promoId)

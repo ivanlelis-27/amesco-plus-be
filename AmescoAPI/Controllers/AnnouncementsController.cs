@@ -94,9 +94,17 @@ namespace AmescoAPI.Controllers
                 .Distinct()
                 .ToList();
 
+            // Load all banners in one query and create a lookup
             var banners = _imagesDb.AdBanners
                 .Where(b => bannerIds.Contains(b.Id))
-                .ToList();
+                .ToDictionary(b => b.Id, b => b.ImageData);
+
+            // Load all announcement products in one query and group by announcement
+            var announcementIds = announcements.Select(a => a.AnnouncementId).ToList();
+            var announcementProducts = _context.AnnouncementProducts
+                .Where(ap => announcementIds.Contains(ap.AnnouncementId))
+                .GroupBy(ap => ap.AnnouncementId)
+                .ToDictionary(g => g.Key, g => g.Select(ap => ap.PromoId).ToList());
 
             var result = announcements.Select(a => new
             {
@@ -107,13 +115,84 @@ namespace AmescoAPI.Controllers
                 a.BannerImageId,
                 a.DateCreated,
                 a.DateUpdated,
-                a.SortIndex, // <-- Include SortIndex in response
-                imageBase64 = a.BannerImageId.HasValue
-                    ? banners.FirstOrDefault(b => b.Id == a.BannerImageId.Value)?.ImageData != null
-                        ? Convert.ToBase64String(banners.FirstOrDefault(b => b.Id == a.BannerImageId.Value).ImageData)
-                        : null
-                    : null
+                a.SortIndex,
+                imageBase64 = (a.BannerImageId.HasValue && banners.ContainsKey(a.BannerImageId.Value))
+                    ? Convert.ToBase64String(banners[a.BannerImageId.Value])
+                    : null,
+                promoIds = announcementProducts.ContainsKey(a.AnnouncementId)
+                    ? announcementProducts[a.AnnouncementId]
+                    : new List<int>()
             });
+
+            return Ok(result);
+        }
+
+        [HttpGet("{id}")]
+        public IActionResult GetAnnouncementById(int id)
+        {
+            var announcement = _context.Announcements.FirstOrDefault(a => a.AnnouncementId == id);
+            if (announcement == null)
+                return NotFound(new { message = "Announcement not found." });
+
+            var banner = announcement.BannerImageId.HasValue
+                ? _imagesDb.AdBanners.FirstOrDefault(b => b.Id == announcement.BannerImageId.Value)
+                : null;
+
+            var promoIds = _context.AnnouncementProducts
+                .Where(ap => ap.AnnouncementId == id)
+                .Select(ap => ap.PromoId)
+                .ToList();
+
+            return Ok(new
+            {
+                announcement.AnnouncementId,
+                announcement.Title,
+                announcement.Description,
+                announcement.PromoGroupId,
+                announcement.BannerImageId,
+                announcement.DateCreated,
+                announcement.DateUpdated,
+                announcement.SortIndex,
+                imageBase64 = banner?.ImageData != null ? Convert.ToBase64String(banner.ImageData) : null,
+                promoIds
+            });
+        }
+
+        [HttpGet("{id}/promos")]
+        public IActionResult GetAnnouncementPromos(int id)
+        {
+            var announcement = _context.Announcements.FirstOrDefault(a => a.AnnouncementId == id);
+            if (announcement == null)
+                return NotFound(new { message = "Announcement not found." });
+
+            var promoGroupName = announcement.PromoGroupId.HasValue
+                ? _context.PromoGroups.FirstOrDefault(pg => pg.PromoGroupId == announcement.PromoGroupId.Value)?.Name
+                : null;
+
+            var promoIds = _context.AnnouncementProducts
+                .Where(ap => ap.AnnouncementId == id)
+                .Select(ap => ap.PromoId)
+                .ToList();
+
+            var promos = _context.Promos
+                .Where(p => promoIds.Contains(p.PromoId))
+                .ToList();
+
+            var promoImages = _imagesDb.PromoImages
+                .Where(pi => promoIds.Contains(pi.PromoId))
+                .ToList();
+
+            var result = promos.Select(p => new
+            {
+                p.PromoId,
+                brandItemName = p.BrandItemName,
+                price = p.Price,
+                unit = p.Unit,
+                imageBase64 = promoImages.FirstOrDefault(pi => pi.PromoId == p.PromoId)?.ImageData != null
+                    ? Convert.ToBase64String(promoImages.FirstOrDefault(pi => pi.PromoId == p.PromoId).ImageData)
+                    : null,
+                promoGroupName
+            }).ToList();
 
             return Ok(result);
         }
