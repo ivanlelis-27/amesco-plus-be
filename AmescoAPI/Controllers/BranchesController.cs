@@ -21,6 +21,14 @@ namespace AmescoAPI.Controllers
             return Ok(branches);
         }
 
+        [HttpGet("head-office")]
+        public IActionResult GetHeadOffice()
+        {
+            var branch = _context.Branches.FirstOrDefault(b => b.BranchID == 39);
+            if (branch == null) return NotFound();
+            return Ok(branch);
+        }
+
         [HttpPost]
         public IActionResult Create([FromBody] Branch branch)
         {
@@ -51,6 +59,27 @@ namespace AmescoAPI.Controllers
         public IActionResult Update(int id, [FromBody] Branch updated)
         {
             var branch = _context.Branches.Find(id);
+            if (branch == null) return NotFound();
+
+            branch.BranchName = updated.BranchName;
+            branch.Address = updated.Address;
+            branch.Contact = updated.Contact;
+            branch.Latitude = updated.Latitude;
+            branch.Longitude = updated.Longitude;
+            branch.StartDay = updated.StartDay;
+            branch.EndDay = updated.EndDay;
+            branch.OpenTime = updated.OpenTime;
+            branch.CloseTime = updated.CloseTime;
+            branch.Email = updated.Email;
+
+            _context.SaveChanges();
+            return Ok(branch);
+        }
+
+        [HttpPut("head-office")]
+        public IActionResult UpdateHeadOffice([FromBody] Branch updated)
+        {
+            var branch = _context.Branches.FirstOrDefault(b => b.BranchID == 39);
             if (branch == null) return NotFound();
 
             branch.BranchName = updated.BranchName;
