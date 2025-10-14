@@ -21,6 +21,15 @@ namespace AmescoAPI.Controllers
         private readonly AppDbContext _context;
         private readonly IEmailService _emailService;
 
+        private readonly TokenConcurrencyService _tokenConcurrency;
+
+        public AuthController(AppDbContext context, IEmailService emailService, TokenConcurrencyService tokenConcurrency)
+        {
+            _context = context;
+            _emailService = emailService;
+            _tokenConcurrency = tokenConcurrency;
+        }
+
         private string GenerateMemberId()
         {
             var random = new Random();
@@ -48,12 +57,6 @@ namespace AmescoAPI.Controllers
 
             int nextSuffix = lastSuffix + 1;
             return $"{randomDigits}-{nextSuffix}";
-        }
-
-        public AuthController(AppDbContext context, IEmailService emailService)
-        {
-            _context = context;
-            _emailService = emailService;
         }
 
         [HttpPost("register")]
@@ -171,8 +174,33 @@ namespace AmescoAPI.Controllers
             user.Mobile,
             user.MemberId,
             this.HttpContext.RequestServices.GetService<IConfiguration>());
+
+            user.CurrentJwtToken = token;
+            _context.SaveChanges();
+
             Console.WriteLine($"JWT issued for user {user.Email}: {token}");
             return Ok(new { message = "Login successful!", token });
+        }
+
+        [Authorize]
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized();
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID");
+
+            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            if (user == null)
+                return NotFound("User not found");
+
+            user.CurrentJwtToken = null; // Invalidate token
+            _context.SaveChanges();
+
+            return Ok(new { message = "Logged out successfully." });
         }
 
         [HttpPost("forgot-password")]
@@ -225,6 +253,10 @@ namespace AmescoAPI.Controllers
 
             if (!int.TryParse(userIdClaim, out int userId))
                 return BadRequest("Invalid user ID");
+
+            var tokenFromRequest = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+            if (!_tokenConcurrency.IsTokenValidForUser(userId.ToString(), tokenFromRequest))
+                return Unauthorized("Session expired or logged in elsewhere.");
 
             var user = _context.Users.FirstOrDefault(u => u.Id == userId);
             if (user == null)

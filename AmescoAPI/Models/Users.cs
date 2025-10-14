@@ -12,5 +12,7 @@ namespace AmescoAPI.Models
         public string MemberId { get; set; } = null!;
         public string? ResetTokenHash { get; set; }
         public DateTime? ResetTokenExpiry { get; set; }
+
+        public string? CurrentJwtToken { get; set; }
     }
 }

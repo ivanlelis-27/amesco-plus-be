@@ -10,6 +10,7 @@ using QRCoder;
 using System.Linq;
 using System.IO;
 using Microsoft.EntityFrameworkCore;
+using AmescoAPI.Services;
 
 namespace AmescoAPI.Controllers
 {
@@ -21,11 +22,14 @@ namespace AmescoAPI.Controllers
         private readonly IConfiguration _config;
         private readonly string _imagesConnectionString;
 
-        public UsersController(AppDbContext context, IConfiguration config)
+        private readonly TokenConcurrencyService _tokenConcurrency;
+
+        public UsersController(AppDbContext context, IConfiguration config, TokenConcurrencyService tokenConcurrency)
         {
             _context = context;
             _config = config;
             _imagesConnectionString = _config.GetConnectionString("AmescoImagesConnection");
+            _tokenConcurrency = tokenConcurrency;
         }
 
         [HttpGet("me")]
@@ -53,6 +57,15 @@ namespace AmescoAPI.Controllers
                 return Unauthorized();
             }
 
+            // --- Token concurrency check ---
+            var tokenFromRequest = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+            if (!_tokenConcurrency.IsTokenValidForUser(userId.ToString(), tokenFromRequest))
+            {
+                Console.WriteLine("Token concurrency check failed. Returning Unauthorized.");
+                return Unauthorized("Session expired or logged in elsewhere.");
+            }
+            // --- End token concurrency check ---
+
             var user = _context.Users.FirstOrDefault(u => u.Id == userId);
             if (user == null)
             {
@@ -62,7 +75,6 @@ namespace AmescoAPI.Controllers
 
             var points = _context.Points.FirstOrDefault(p => p.UserId == user.MemberId);
 
-
             dynamic? userImage = null;
             byte[]? profileImageBytes = null;
             string? profileImageType = null;
@@ -71,9 +83,9 @@ namespace AmescoAPI.Controllers
             {
                 userImage = connection.QueryFirstOrDefault<dynamic>(
                     @"SELECT TOP 1 ProfileImage, ImageType
-                    FROM UserImages 
-                    WHERE MemberId = @MemberId 
-                    ORDER BY UploadedAt DESC",
+            FROM UserImages 
+            WHERE MemberId = @MemberId 
+            ORDER BY UploadedAt DESC",
                     new { MemberId = user.MemberId }
                 );
 
@@ -85,8 +97,8 @@ namespace AmescoAPI.Controllers
             }
 
             string? profileImageBase64 = profileImageBytes != null
-            ? Convert.ToBase64String(profileImageBytes)
-            : null;
+                ? Convert.ToBase64String(profileImageBytes)
+                : null;
 
             return Ok(new
             {
