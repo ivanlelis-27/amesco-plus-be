@@ -79,7 +79,7 @@ namespace AmescoAPI.Controllers
         [HttpPut("head-office")]
         public IActionResult UpdateHeadOffice([FromBody] Branch updated)
         {
-            var branch = _context.Branches.FirstOrDefault(b => b.BranchID == 39);
+            var branch = _context.Branches.Find(39);
             if (branch == null) return NotFound();
 
             branch.BranchName = updated.BranchName;
@@ -93,6 +93,7 @@ namespace AmescoAPI.Controllers
             branch.CloseTime = updated.CloseTime;
             branch.Email = updated.Email;
 
+            // All fields will accept nulls if your model and DB allow it
             _context.SaveChanges();
             return Ok(branch);
         }
