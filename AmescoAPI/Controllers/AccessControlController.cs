@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using AmescoAPI.Data;
 using AmescoAPI.Models;
+using AmescoAPI.Services;
 
 namespace AmescoAPI.Controllers
 {
@@ -9,9 +10,11 @@ namespace AmescoAPI.Controllers
     public class AccessControlController : ControllerBase
     {
         private readonly AppDbContext _context;
-        public AccessControlController(AppDbContext context)
+        private readonly IEmailService _emailService;
+        public AccessControlController(AppDbContext context, IEmailService emailService)
         {
             _context = context;
+            _emailService = emailService;
         }
 
         [HttpGet]
@@ -91,6 +94,64 @@ namespace AmescoAPI.Controllers
             public string Email { get; set; }
             public int BranchID { get; set; }
             public string Role { get; set; }
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            var user = _context.AccessControls.FirstOrDefault(u => u.Email == request.Email);
+            if (user == null) return NotFound("User not found.");
+
+            var tempPassword = GenerateTemporaryPassword(9);
+            var hashedPassword = HashPassword(tempPassword);
+
+            user.PasswordHash = hashedPassword;
+            _context.SaveChanges();
+
+            var subject = "Your Temporary Password";
+
+            var htmlBody = $@"
+            <table style='width:100%;max-width:480px;margin:auto;font-family:Segoe UI,Arial,sans-serif;background:#f9f9f9;border-radius:8px;box-shadow:0 2px 8px #eee;'>
+                <tr>
+                    <td style='padding:32px 32px 16px 32px;'>
+                        <h2 style='color:#2a4365;margin-bottom:8px;'>Amesco Password Reset</h2>
+                        <p style='font-size:16px;color:#333;margin-bottom:24px;'>
+                            Hello,<br>
+                            You requested a password reset for your Amesco account.<br>
+                            Please use the temporary password below to log in and change your password as soon as possible.
+                        </p>
+                        <div style='background:#e2e8f0;padding:18px 0;border-radius:6px;text-align:center;margin-bottom:24px;'>
+                            <span style='font-size:22px;font-weight:600;color:#2b6cb0;letter-spacing:2px;'>{tempPassword}</span>
+                        </div>
+                        <p style='font-size:14px;color:#555;margin-bottom:0;'>
+                            If you did not request this, please ignore this email or contact support.
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style='padding:0 32px 24px 32px;font-size:13px;color:#888;text-align:center;'>
+                        &copy; {DateTime.Now.Year} Amesco. All rights reserved.
+                    </td>
+                </tr>
+            </table>
+            ";
+
+            await _emailService.SendEmailAsync(user.Email, subject, htmlBody);
+
+            return Ok(new { message = "Temporary password sent to your email." });
+        }
+
+        public class ResetPasswordRequest
+        {
+            public string Email { get; set; }
+        }
+
+        private string GenerateTemporaryPassword(int length)
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+            var random = new Random();
+            return new string(Enumerable.Repeat(chars, length)
+                .Select(s => s[random.Next(s.Length)]).ToArray());
         }
 
         [HttpDelete("{id}")]

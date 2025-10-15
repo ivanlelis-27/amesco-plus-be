@@ -215,15 +215,34 @@ namespace AmescoAPI.Controllers
             _context.SaveChanges();
 
             var body = $@"
-                <html>
-                <body style='font-family: Arial, sans-serif;'>
-                    <h2>Hello {user.FirstName},</h2>
-                    <p>Your temporary password is: <b>{tempPassword}</b></p>
-                    <p>Please log in with this password and reset it immediately.</p>
-                    <br/>
-                    <p style='color:gray;'>– Amesco Support</p>
-                </body>
-                </html>";
+            <html>
+            <body style='font-family:Segoe UI,Arial,sans-serif;background:#f9f9f9;margin:0;padding:0;'>
+                <table style='width:100%;max-width:480px;margin:auto;background:#fff;border-radius:8px;box-shadow:0 2px 8px #eee;'>
+                    <tr>
+                        <td style='padding:32px 32px 16px 32px;'>
+                            <h2 style='color:#2a4365;margin-bottom:8px;'>Amesco Password Reset</h2>
+                            <p style='font-size:16px;color:#333;margin-bottom:24px;'>
+                                Hello {user.FirstName},<br>
+                                You requested a password reset for your Amesco account.<br>
+                                Please use the temporary password below to log in and change your password as soon as possible.
+                            </p>
+                            <div style='background:#e2e8f0;padding:18px 0;border-radius:6px;text-align:center;margin-bottom:24px;'>
+                                <span style='font-size:22px;font-weight:600;color:#2b6cb0;letter-spacing:2px;'>{tempPassword}</span>
+                            </div>
+                            <p style='font-size:14px;color:#555;margin-bottom:0;'>
+                                If you did not request this, please ignore this email or contact support.
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style='padding:0 32px 24px 32px;font-size:13px;color:#888;text-align:center;'>
+                            &copy; {DateTime.Now.Year} Amesco. All rights reserved.
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+            ";
             Console.WriteLine("Sending Email Body:"); // for debugging
             Console.WriteLine(body);
             await _emailService.SendEmailAsync(user.Email, "Your Temporary Password", body);
