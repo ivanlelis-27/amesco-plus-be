@@ -69,6 +69,30 @@ namespace AmescoAPI.Controllers
             return Ok(user);
         }
 
+        [HttpPatch("{id}")]
+        public IActionResult EditBasicInfo(int id, [FromBody] EditAccessControlRequest request)
+        {
+            var user = _context.AccessControls.Find(id);
+            if (user == null) return NotFound();
+
+            user.FullName = $"{request.FirstName} {request.LastName}";
+            user.Email = request.Email;
+            user.BranchID = request.BranchID;
+            user.Role = request.Role;
+
+            _context.SaveChanges();
+            return Ok(user);
+        }
+
+        public class EditAccessControlRequest
+        {
+            public string FirstName { get; set; }
+            public string LastName { get; set; }
+            public string Email { get; set; }
+            public int BranchID { get; set; }
+            public string Role { get; set; }
+        }
+
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {
