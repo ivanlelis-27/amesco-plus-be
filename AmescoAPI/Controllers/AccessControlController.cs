@@ -22,9 +22,19 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpPost]
-        public IActionResult Create([FromBody] AccessControl user)
+        public IActionResult Create([FromBody] CreateAccessControlRequest request)
         {
-            user.CreatedAt = DateTime.Now;
+            var user = new AccessControl
+            {
+                FullName = $"{request.FirstName} {request.LastName}",
+                Email = request.Email,
+                PasswordHash = request.PasswordHash,
+                Role = request.Role,
+                BranchID = request.BranchID,
+                CreatedAt = DateTime.Now,
+                IsActive = true,
+                LastLogin = null
+            };
             _context.AccessControls.Add(user);
             _context.SaveChanges();
             return Ok(user);
