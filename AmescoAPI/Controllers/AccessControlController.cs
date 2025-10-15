@@ -24,11 +24,13 @@ namespace AmescoAPI.Controllers
         [HttpPost]
         public IActionResult Create([FromBody] CreateAccessControlRequest request)
         {
+            var hashedPassword = HashPassword(request.PasswordHash); // Replace with your actual hash method
+
             var user = new AccessControl
             {
                 FullName = $"{request.FirstName} {request.LastName}",
                 Email = request.Email,
-                PasswordHash = request.PasswordHash,
+                PasswordHash = hashedPassword,
                 Role = request.Role,
                 BranchID = request.BranchID,
                 CreatedAt = DateTime.Now,
@@ -38,6 +40,15 @@ namespace AmescoAPI.Controllers
             _context.AccessControls.Add(user);
             _context.SaveChanges();
             return Ok(user);
+        }
+        private string HashPassword(string password)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                var bytes = System.Text.Encoding.UTF8.GetBytes(password);
+                var hash = sha.ComputeHash(bytes);
+                return Convert.ToBase64String(hash);
+            }
         }
 
         [HttpPut("{id}")]
