@@ -27,7 +27,7 @@ namespace AmescoAPI.Controllers
         [HttpPost]
         public IActionResult Create([FromBody] CreateAccessControlRequest request)
         {
-            var hashedPassword = HashPassword(request.PasswordHash); // Replace with your actual hash method
+            var hashedPassword = HashPassword(request.PasswordHash); 
 
             var user = new AccessControl
             {

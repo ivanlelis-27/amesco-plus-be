@@ -26,7 +26,7 @@ namespace AmescoAPI.Controllers
             [FromForm] int? promoGroupId,
             [FromForm] IFormFile? image,
             [FromForm] int? sortIndex,
-            [FromForm] List<int> promoIds // <-- Accept promoIds from the request
+            [FromForm] List<int> promoIds 
         )
         {
             int? bannerImageId = null;
@@ -63,7 +63,6 @@ namespace AmescoAPI.Controllers
             _context.Announcements.Add(announcement);
             await _context.SaveChangesAsync();
 
-            // Insert into AnnouncementProducts table
             if (promoIds != null && promoIds.Count > 0)
             {
                 foreach (var promoId in promoIds)
@@ -94,12 +93,12 @@ namespace AmescoAPI.Controllers
                 .Distinct()
                 .ToList();
 
-            // Load all banners in one query and create a lookup
+            // loads all banners in one query and creates a lookup
             var banners = _imagesDb.AdBanners
                 .Where(b => bannerIds.Contains(b.Id))
                 .ToDictionary(b => b.Id, b => b.ImageData);
 
-            // Load all announcement products in one query and group by announcement
+            // loads all announcement products in one query and groups by announcement
             var announcementIds = announcements.Select(a => a.AnnouncementId).ToList();
             var announcementProducts = _context.AnnouncementProducts
                 .Where(ap => announcementIds.Contains(ap.AnnouncementId))

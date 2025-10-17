@@ -107,6 +107,7 @@ namespace AmescoAPI.Controllers
             return Ok(new { memberId });
         }
 
+        // endpoint for testing only
         [HttpPost("bulk-register")]
         public IActionResult BulkRegister([FromBody] List<RegisterRequest> requests)
         {
@@ -125,7 +126,7 @@ namespace AmescoAPI.Controllers
 
                 if (_context.Users.Any(u => u.Email == request.Email))
                 {
-                    continue; // skip duplicates
+                    continue;
                 }
 
                 var user = new Users
@@ -163,7 +164,7 @@ namespace AmescoAPI.Controllers
             var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
             if (user == null) return NotFound("User not found.");
 
-            if (user.PasswordHash != HashPassword(request.Password))
+            if (!VerifyPassword(user.PasswordHash, request.Password))
                 return BadRequest("Invalid password.");
 
             // generate a compact server session id
@@ -324,6 +325,31 @@ namespace AmescoAPI.Controllers
                 var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
                 return Convert.ToBase64String(bytes);
             }
+            const int iterations = 100_000;
+            const int saltSize = 16;
+            const int hashSize = 32;
+
+            var salt = new byte[saltSize];
+            RandomNumberGenerator.Fill(salt);
+
+            using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, iterations, HashAlgorithmName.SHA256);
+            var hash = pbkdf2.GetBytes(hashSize);
+            return $"{iterations}.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";
+        }
+
+        private bool VerifyPassword(string storedHash, string providedPassword)
+        {
+            if (string.IsNullOrEmpty(storedHash) || string.IsNullOrEmpty(providedPassword)) return false;
+            var parts = storedHash.Split('.');
+            if (parts.Length != 3) return false;
+            if (!int.TryParse(parts[0], out int iterations)) return false;
+
+            var salt = Convert.FromBase64String(parts[1]);
+            var hash = Convert.FromBase64String(parts[2]);
+
+            using var pbkdf2 = new Rfc2898DeriveBytes(providedPassword, salt, iterations, HashAlgorithmName.SHA256);
+            var computed = pbkdf2.GetBytes(hash.Length);
+            return CryptographicOperations.FixedTimeEquals(computed, hash);
         }
 
         private string GenerateTempPassword()
