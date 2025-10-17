@@ -40,9 +40,8 @@ namespace AmescoAPI.Controllers
 
             if (_context.Users.Any())
             {
-                // Load MemberIds into memory, then extract numeric suffixes safely
                 var suffixes = _context.Users
-                    .AsEnumerable() // ← this makes EF stop translating to SQL
+                    .AsEnumerable() 
                     .Select(u =>
                     {
                         var parts = u.MemberId.Split('-');

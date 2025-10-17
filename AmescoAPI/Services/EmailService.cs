@@ -2,7 +2,7 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Options;
-using AmescoAPI.Models;   // for EmailSettings
+using AmescoAPI.Models;   
 
 namespace AmescoAPI.Services
 {

@@ -93,7 +93,6 @@ namespace AmescoAPI.Controllers
             branch.CloseTime = updated.CloseTime;
             branch.Email = updated.Email;
 
-            // All fields will accept nulls if your model and DB allow it
             _context.SaveChanges();
             return Ok(branch);
         }
@@ -120,7 +119,6 @@ namespace AmescoAPI.Controllers
                 .Take(5)
                 .ToList();
 
-            // Get branch names in one query
             var branchIds = topBranches.Select(x => x.branchId).ToList();
             var branches = _context.Branches
                 .Where(b => branchIds.Contains(b.BranchID))

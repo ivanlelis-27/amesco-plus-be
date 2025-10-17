@@ -155,7 +155,7 @@ namespace AmescoAPI.Controllers
                 transactions = transactions.Where(t => t.DateIssued >= startDate.Value);
 
             if (endDate.HasValue)
-                transactions = transactions.Where(t => t.DateIssued < endDate.Value.Date.AddDays(1)); // Inclusive
+                transactions = transactions.Where(t => t.DateIssued < endDate.Value.Date.AddDays(1)); 
 
             // Group transactions by UserId and sum EarnedPoints
             var userPoints = transactions

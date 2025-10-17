@@ -266,7 +266,7 @@ namespace AmescoAPI.Controllers
             var points = _context.Points.FirstOrDefault(p => p.UserId == user.MemberId);
             decimal pointsBalance = points?.PointsBalance ?? 0;
 
-            // Build QR payload (vertical format)
+            // Build QR payload 
             string qrPayload = $"Series: {series}\n" +
                               $"Name: {fullName}\n" +
                               $"Email: {user.Email}\n" +

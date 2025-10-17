@@ -148,7 +148,7 @@ namespace AmescoAPI.Controllers
                 vouchers = vouchers.Where(v => v.DateUsed >= startDate.Value);
 
             if (endDate.HasValue)
-                vouchers = vouchers.Where(v => v.DateUsed < endDate.Value.Date.AddDays(1)); // Inclusive
+                vouchers = vouchers.Where(v => v.DateUsed < endDate.Value.Date.AddDays(1)); 
 
             var latest = vouchers
                 .OrderByDescending(v => v.DateUsed)
@@ -177,7 +177,7 @@ namespace AmescoAPI.Controllers
                 vouchers = vouchers.Where(v => v.DateCreated >= start.Value);
 
             if (end.HasValue)
-                vouchers = vouchers.Where(v => v.DateCreated < end.Value.Date.AddDays(1)); // Inclusive of end date
+                vouchers = vouchers.Where(v => v.DateCreated < end.Value.Date.AddDays(1)); 
 
             decimal redeemedPoints = vouchers
                 .Where(v => v.IsUsed)
