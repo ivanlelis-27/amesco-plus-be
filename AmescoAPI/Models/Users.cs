@@ -14,5 +14,7 @@ namespace AmescoAPI.Models
         public DateTime? ResetTokenExpiry { get; set; }
 
         public string? CurrentJwtToken { get; set; }
+
+        public string? CurrentSessionId { get; set; }
     }
 }

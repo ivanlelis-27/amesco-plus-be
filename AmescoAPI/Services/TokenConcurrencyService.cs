@@ -17,5 +17,11 @@ namespace AmescoAPI.Services
             var user = _context.Users.FirstOrDefault(u => u.Id.ToString() == userId);
             return user != null && user.CurrentJwtToken == token;
         }
+
+        public bool IsSessionValidForUser(string userId, string sessionId)
+        {
+            var user = _context.Users.FirstOrDefault(u => u.Id.ToString() == userId);
+            return user != null && !string.IsNullOrEmpty(user.CurrentSessionId) && user.CurrentSessionId == sessionId;
+        }
     }
 }

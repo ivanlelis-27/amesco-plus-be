@@ -6,14 +6,15 @@ using Microsoft.Extensions.Configuration;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
+using System.Collections.Generic;
 
 public static class TokenUtils
 {
     public static string GenerateJwtToken(
-    string userId, string email, string firstName, string lastName, string mobile, string memberId, IConfiguration config)
+    string userId, string email, string firstName, string lastName, string mobile, string memberId, IConfiguration config, string? sessionId = null)
     {
         var jwtSettings = config.GetSection("Jwt");
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId),
             new Claim(JwtRegisteredClaimNames.Email, email),
@@ -22,6 +23,11 @@ public static class TokenUtils
             new Claim("mobile", mobile ?? ""),
             new Claim("memberId", memberId ?? "")
         };
+
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            claims.Add(new Claim("sid", sessionId)); // session id claim
+        }
 
         var keyString = jwtSettings["Key"] ?? "";
         Console.WriteLine("JWT KEY USED FOR SIGNING: >" + keyString + "<");
@@ -42,7 +48,7 @@ public static class TokenUtils
     {
         var bytes = new byte[size];
         RandomNumberGenerator.Fill(bytes);
-        return WebEncoders.Base64UrlEncode(bytes); // URL-safe base64
+        return WebEncoders.Base64UrlEncode(bytes);
     }
 
     public static string ComputeSha256Hash(string input)

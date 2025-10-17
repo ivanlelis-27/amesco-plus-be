@@ -166,20 +166,42 @@ namespace AmescoAPI.Controllers
             if (user.PasswordHash != HashPassword(request.Password))
                 return BadRequest("Invalid password.");
 
-            var token = TokenUtils.GenerateJwtToken(
-            user.Id.ToString(),
-            user.Email,
-            user.FirstName,
-            user.LastName,
-            user.Mobile,
-            user.MemberId,
-            this.HttpContext.RequestServices.GetService<IConfiguration>());
+            // generate a compact server session id
+            var sessionId = TokenUtils.GenerateTokenUrlSafe(24);
 
+            var token = TokenUtils.GenerateJwtToken(
+                user.Id.ToString(),
+                user.Email,
+                user.FirstName,
+                user.LastName,
+                user.Mobile,
+                user.MemberId,
+                this.HttpContext.RequestServices.GetService<IConfiguration>(),
+                sessionId // embed session id in token
+            );
+
+            // store token and session id (overwrites previous session -> forces previous session to be logged out)
             user.CurrentJwtToken = token;
+            user.CurrentSessionId = sessionId;
             _context.SaveChanges();
 
             Console.WriteLine($"JWT issued for user {user.Email}: {token}");
-            return Ok(new { message = "Login successful!", token });
+            return Ok(new { message = "Login successful!", token, sessionId });
+        }
+
+        [Authorize]
+        [HttpGet("session-status")]
+        public IActionResult SessionStatus()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+            var tokenSessionId = User.FindFirst("sid")?.Value;
+            if (string.IsNullOrEmpty(tokenSessionId))
+                return BadRequest(new { isValid = false, message = "No session id in token." });
+
+            var isValid = _tokenConcurrency.IsSessionValidForUser(userIdClaim, tokenSessionId);
+            return Ok(new { isValid });
         }
 
         [Authorize]
@@ -198,6 +220,7 @@ namespace AmescoAPI.Controllers
                 return NotFound("User not found");
 
             user.CurrentJwtToken = null; // Invalidate token
+            user.CurrentSessionId = null; // Clear session id
             _context.SaveChanges();
 
             return Ok(new { message = "Logged out successfully." });
