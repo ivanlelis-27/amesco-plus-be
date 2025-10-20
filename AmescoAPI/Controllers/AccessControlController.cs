@@ -3,6 +3,7 @@ using AmescoAPI.Data;
 using AmescoAPI.Models;
 using AmescoAPI.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AmescoAPI.Controllers
 {
@@ -93,6 +94,40 @@ namespace AmescoAPI.Controllers
         {
             public string Email { get; set; }
             public string Password { get; set; }
+        }
+
+        [Authorize]
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            // try standard name identifier claim then fallback to "sub"
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                              ?? User.FindFirst("sub")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID");
+
+            var user = _context.AccessControls.FirstOrDefault(u => u.UserID == userId);
+            if (user == null) return NotFound("User not found.");
+
+            // If you later store tokens for AccessControl users, clear them here.
+            Console.WriteLine($"AccessControl logout: user {user.Email} (ID {user.UserID})");
+
+            return Ok(new { message = "Logout successful" });
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ResetPasswordRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request?.Email))
+                return BadRequest(new { message = "Invalid email." });
+
+            var user = _context.AccessControls.FirstOrDefault(u => u.Email == request.Email);
+            if (user == null) return BadRequest(new { message = "Invalid email." });
+
+            // reuse existing ResetPassword logic
+            return await ResetPassword(request);
         }
 
 
@@ -234,6 +269,28 @@ namespace AmescoAPI.Controllers
             _context.AccessControls.Remove(user);
             _context.SaveChanges();
             return NoContent();
+        }
+
+
+        // test endpoint to change password by user ID only
+        [HttpPost("change-password/{id}")]
+        public IActionResult ChangePasswordById(int id, [FromBody] ChangePasswordRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.NewPassword))
+                return BadRequest(new { message = "NewPassword is required." });
+
+            var user = _context.AccessControls.Find(id);
+            if (user == null) return NotFound(new { message = "User not found." });
+
+            user.PasswordHash = HashPassword(request.NewPassword);
+            _context.SaveChanges();
+
+            return Ok(new { message = "Password updated (temporary test endpoint)." });
+        }
+
+        public class ChangePasswordRequest
+        {
+            public string NewPassword { get; set; }
         }
     }
 }
