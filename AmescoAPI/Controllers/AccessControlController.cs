@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using AmescoAPI.Data;
 using AmescoAPI.Models;
 using AmescoAPI.Services;
+using Microsoft.Extensions.Configuration;
 
 namespace AmescoAPI.Controllers
 {
@@ -23,6 +24,77 @@ namespace AmescoAPI.Controllers
             var users = _context.AccessControls.ToList();
             return Ok(users);
         }
+
+        [HttpPost("login")]
+        public IActionResult Login([FromBody] AccessControlLoginRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+                return BadRequest("Email and password are required.");
+
+            var user = _context.AccessControls.FirstOrDefault(u => u.Email == request.Email);
+            if (user == null) return NotFound("User not found.");
+
+            // Hash incoming password same as Create/Reset uses (SHA256) and compare
+            var incomingHash = HashPassword(request.Password);
+            if (!string.Equals(incomingHash, user.PasswordHash))
+                return Unauthorized("Invalid credentials.");
+
+            // update last login timestamp
+            user.LastLogin = DateTime.Now;
+            _context.SaveChanges();
+
+            // generate session id and JWT (access-control users)
+            var sessionId = TokenUtils.GenerateTokenUrlSafe(24);
+            var names = (user.FullName ?? "").Split(' ', 2, System.StringSplitOptions.RemoveEmptyEntries);
+            var firstName = names.Length > 0 ? names[0] : "";
+            var lastName = names.Length > 1 ? names[1] : "";
+            var config = HttpContext.RequestServices.GetService(typeof(IConfiguration)) as IConfiguration;
+
+            var token = TokenUtils.GenerateJwtToken(
+                user.UserID.ToString(),
+                user.Email,
+                firstName,
+                lastName,
+                "",   // mobile (not used for access control)
+                "",   // memberId (not used for access control)
+                config,
+                sessionId
+            );
+
+            // ensure Authorization header contains the token (overwrite if present)
+            Response.Headers["Authorization"] = "Bearer " + token;
+
+            // expose header so browsers can read it
+            if (Response.Headers.TryGetValue("Access-Control-Expose-Headers", out var existing))
+            {
+                var expose = existing.ToString();
+                if (!expose.Contains("Authorization"))
+                    Response.Headers["Access-Control-Expose-Headers"] = expose + ", Authorization";
+            }
+            else
+            {
+                Response.Headers.Add("Access-Control-Expose-Headers", "Authorization");
+            }
+
+            return Ok(new
+            {
+                id = user.UserID,
+                fullName = user.FullName,
+                email = user.Email,
+                role = user.Role,
+                branchID = user.BranchID,
+                lastLogin = user.LastLogin,
+                token,
+                sessionId
+            });
+        }
+
+        public class AccessControlLoginRequest
+        {
+            public string Email { get; set; }
+            public string Password { get; set; }
+        }
+
 
         [HttpPost]
         public IActionResult Create([FromBody] CreateAccessControlRequest request)

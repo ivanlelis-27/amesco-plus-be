@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using Microsoft.AspNetCore.Authorization;
+using System.Collections.Generic;
 
 namespace AmescoAPI.Controllers
 {
@@ -163,7 +164,7 @@ namespace AmescoAPI.Controllers
             var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
             if (user == null) return NotFound("User not found.");
 
-            if (!VerifyPassword(user.PasswordHash, request.Password))
+            if (!VerifyPasswordAndRehash(user, request.Password))
                 return BadRequest("Invalid password.");
 
             // generate a compact server session id
@@ -189,6 +190,7 @@ namespace AmescoAPI.Controllers
             return Ok(new { message = "Login successful!", token, sessionId });
         }
 
+        
         [Authorize]
         [HttpGet("session-status")]
         public IActionResult SessionStatus()
@@ -304,10 +306,29 @@ namespace AmescoAPI.Controllers
             if (user == null)
                 return NotFound("User not found");
 
-            _context.Users.Remove(user);
-            _context.SaveChanges();
-            Console.WriteLine($"User deleted: {user.Id}, {user.Email}");
-            return Ok(new { message = "Account deleted successfully." });
+            using var tx = _context.Database.BeginTransaction();
+            try
+            {
+                // remove dependent Points rows first (match Points.UserId to Users.MemberId)
+                var points = _context.Points.Where(p => p.UserId == user.MemberId).ToList();
+                if (points.Any())
+                {
+                    _context.Points.RemoveRange(points);
+                }
+
+                _context.Users.Remove(user);
+                _context.SaveChanges();
+
+                tx.Commit();
+                Console.WriteLine($"User deleted: {user.Id}, {user.Email}");
+                return Ok(new { message = "Account deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                Console.WriteLine("Unsubscribe error: " + ex.Message);
+                return StatusCode(500, new { error = "Failed to delete account." });
+            }
         }
 
         private bool isValidEmail(string email)
@@ -319,11 +340,7 @@ namespace AmescoAPI.Controllers
 
         private string HashPassword(string password)
         {
-            using (var sha256 = SHA256.Create())
-            {
-                var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-                return Convert.ToBase64String(bytes);
-            }
+            // PBKDF2 (HMAC-SHA256) with per-user random salt.
             const int iterations = 100_000;
             const int saltSize = 16;
             const int hashSize = 32;
@@ -333,12 +350,43 @@ namespace AmescoAPI.Controllers
 
             using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, iterations, HashAlgorithmName.SHA256);
             var hash = pbkdf2.GetBytes(hashSize);
+            // stored format: iterations.saltBase64.hashBase64
             return $"{iterations}.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";
         }
 
-        private bool VerifyPassword(string storedHash, string providedPassword)
+        private bool VerifyPasswordAndRehash(Users user, string providedPassword)
         {
+            var storedHash = user?.PasswordHash;
             if (string.IsNullOrEmpty(storedHash) || string.IsNullOrEmpty(providedPassword)) return false;
+
+            // Legacy SHA256 stored format: no '.' separator
+            if (!storedHash.Contains('.'))
+            {
+                using var sha256 = SHA256.Create();
+                var computed = Convert.ToBase64String(sha256.ComputeHash(Encoding.UTF8.GetBytes(providedPassword)));
+
+                var match = CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(computed),
+                    Encoding.UTF8.GetBytes(storedHash));
+
+                if (match)
+                {
+                    try
+                    {
+                        // rehash with PBKDF2 and persist
+                        user.PasswordHash = HashPassword(providedPassword);
+                        _context.SaveChanges();
+                    }
+                    catch
+                    {
+                        // do not block login if rehash save fails
+                    }
+                }
+
+                return match;
+            }
+
+            // PBKDF2 stored format: iterations.salt.hash
             var parts = storedHash.Split('.');
             if (parts.Length != 3) return false;
             if (!int.TryParse(parts[0], out int iterations)) return false;
@@ -347,13 +395,48 @@ namespace AmescoAPI.Controllers
             var hash = Convert.FromBase64String(parts[2]);
 
             using var pbkdf2 = new Rfc2898DeriveBytes(providedPassword, salt, iterations, HashAlgorithmName.SHA256);
-            var computed = pbkdf2.GetBytes(hash.Length);
-            return CryptographicOperations.FixedTimeEquals(computed, hash);
+            var computedHash = pbkdf2.GetBytes(hash.Length);
+
+            return CryptographicOperations.FixedTimeEquals(computedHash, hash);
         }
 
-        private string GenerateTempPassword()
+        private string GenerateTempPassword(int length = 9)
         {
-            return Guid.NewGuid().ToString("N")[..8]; // 8-char random temp password
+            const string lowers = "abcdefghijklmnopqrstuvwxyz";
+            const string uppers = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const string digits = "0123456789";
+            const string symbols = "!@#$%^&*()-_=+[]{}<>?";
+
+            using var rng = RandomNumberGenerator.Create();
+            var chars = new List<char>
+            {
+                PickRandomChar(lowers, rng),
+                PickRandomChar(uppers, rng),
+                PickRandomChar(digits, rng),
+                PickRandomChar(symbols, rng)
+            };
+
+            var all = lowers + uppers + digits + symbols;
+            while (chars.Count < length) chars.Add(PickRandomChar(all, rng));
+
+            // Fisher–Yates shuffle (secure)
+            for (int i = chars.Count - 1; i > 0; i--)
+            {
+                var b = new byte[4];
+                rng.GetBytes(b);
+                int j = (int)(BitConverter.ToUInt32(b, 0) % (uint)(i + 1));
+                var tmp = chars[i]; chars[i] = chars[j]; chars[j] = tmp;
+            }
+
+            return new string(chars.ToArray());
+        }
+
+        private static char PickRandomChar(string set, RandomNumberGenerator rng)
+        {
+            var b = new byte[4];
+            rng.GetBytes(b);
+            int idx = (int)(BitConverter.ToUInt32(b, 0) % (uint)set.Length);
+            return set[idx];
         }
     }
 }

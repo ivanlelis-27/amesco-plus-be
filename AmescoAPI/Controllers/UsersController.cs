@@ -112,6 +112,46 @@ namespace AmescoAPI.Controllers
             });
         }
 
+        [Authorize]
+        [HttpPut("me")]
+        public async Task<IActionResult> UpdateMe([FromBody] UpdateMeDto dto)
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+            if (!int.TryParse(userIdClaim, out int userId)) return BadRequest("Invalid user id in token.");
+
+            // token concurrency check (same as in Me())
+            var tokenFromRequest = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+            if (!_tokenConcurrency.IsTokenValidForUser(userId.ToString(), tokenFromRequest))
+                return Unauthorized("Session expired or logged in elsewhere.");
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound("User not found.");
+
+            // Only allow editing FirstName, LastName and Mobile
+            if (!string.IsNullOrWhiteSpace(dto.FirstName)) user.FirstName = dto.FirstName.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.LastName)) user.LastName = dto.LastName.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.Mobile)) user.Mobile = dto.Mobile.Trim();
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                id = user.Id,
+                firstName = user.FirstName,
+                lastName = user.LastName,
+                mobile = user.Mobile
+            });
+        }
+
+        public class UpdateMeDto
+        {
+            public string? FirstName { get; set; }
+            public string? LastName { get; set; }
+            public string? Mobile { get; set; }
+        }
+
         [HttpGet("user/{memberId}")]
         public IActionResult GetVouchersForUser(string memberId)
         {
@@ -187,20 +227,20 @@ namespace AmescoAPI.Controllers
             return true;
         }
 
-        [HttpPut("{id}")]
-        public IActionResult Update(int id, Users updated)
-        {
-            var user = _context.Users.Find(id);
-            if (user == null) return NotFound();
-
-            user.FirstName = updated.FirstName;
-            user.LastName = updated.LastName;
-            user.Email = updated.Email;
-            user.Mobile = updated.Mobile;
-
-            _context.SaveChanges();
-            return Ok(user);
-        }
+        [HttpPut("{id:int}")]
+         public IActionResult Update(int id, Users updated)
+         {
+             var user = _context.Users.Find(id);
+             if (user == null) return NotFound();
+ 
+             user.FirstName = updated.FirstName;
+             user.LastName = updated.LastName;
+             user.Email = updated.Email;
+             user.Mobile = updated.Mobile;
+ 
+             _context.SaveChanges();
+             return Ok(user);
+         }
 
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
