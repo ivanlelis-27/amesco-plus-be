@@ -8,6 +8,8 @@ namespace AmescoAPI.Data
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         public DbSet<Users> Users { get; set; }
+        public DbSet<Memberships> Memberships { get; set; }
+        public DbSet<UserSessions> UserSessions { get; set; }
         public DbSet<Points> Points { get; set; }
         public DbSet<UserImage> UserImages { get; set; } = null!;
         public DbSet<Voucher> Vouchers { get; set; }
@@ -36,6 +38,22 @@ namespace AmescoAPI.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<Users>().HasKey(u => u.UserId);
+            modelBuilder.Entity<Memberships>().HasKey(m => m.MemberId);
+            modelBuilder.Entity<UserSessions>().HasKey(s => s.SessionId);
+
+            modelBuilder.Entity<Memberships>()
+                .HasOne(m => m.User)
+                .WithOne(u => u.Membership)
+                .HasForeignKey<Memberships>(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<UserSessions>()
+                .HasOne(s => s.User)
+                .WithMany(u => u.Sessions)
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             modelBuilder.Entity<Voucher>()
                 .Property(v => v.VoucherId)
                 .ValueGeneratedNever();

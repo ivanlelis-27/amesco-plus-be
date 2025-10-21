@@ -28,21 +28,19 @@ namespace AmescoAPI.Controllers
 
             var points = _context.Points.FirstOrDefault(p => p.UserId == request.UserId);
             if (points == null)
-            {
                 return BadRequest("User does not have a points record.");
-            }
+
             decimal pointsDeducted = request.Value;
             if (points.PointsBalance < pointsDeducted)
-            {
                 return BadRequest("Insufficient points balance.");
-            }
+
             points.PointsBalance -= pointsDeducted;
             points.UpdatedAt = DateTime.Now;
 
             var voucher = new Voucher
             {
                 VoucherId = request.VoucherId,
-                UserId = request.UserId,
+                UserId = request.UserId, // still MemberId reference
                 VoucherCode = $"AVQR{request.VoucherId}",
                 Value = request.Value,
                 PointsDeducted = pointsDeducted,
@@ -54,9 +52,14 @@ namespace AmescoAPI.Controllers
             _context.Vouchers.Add(voucher);
             _context.SaveChanges();
 
-            var user = _context.Users.FirstOrDefault(u => u.MemberId == request.UserId);
+            // ✅ FIX: Find user through Membership
+            var membership = _context.Memberships.FirstOrDefault(m => m.MemberId == request.UserId);
+            var user = membership != null
+                ? _context.Users.FirstOrDefault(u => u.UserId == membership.UserId)
+                : null;
+
             string email = user?.Email ?? "";
-            string memberId = user?.MemberId ?? "";
+            string memberId = membership?.MemberId ?? "";
             string seriesNumber = memberId.Contains('-') ? memberId.Split('-').Last() : "";
 
             string qrPayload = $"{voucher.VoucherCode}\n" +
@@ -85,6 +88,7 @@ namespace AmescoAPI.Controllers
                 qrImage = base64Qr
             });
         }
+
 
         [HttpGet("count-used")]
         public IActionResult GetUsedVoucherCount()
@@ -141,32 +145,37 @@ namespace AmescoAPI.Controllers
         [HttpGet("latest-transactions")]
         public IActionResult GetLatestTransactions(DateTime? startDate, DateTime? endDate)
         {
-            var vouchers = _context.Vouchers
-                .Where(v => v.IsUsed);
+            var vouchers = _context.Vouchers.Where(v => v.IsUsed);
 
             if (startDate.HasValue)
                 vouchers = vouchers.Where(v => v.DateUsed >= startDate.Value);
-
             if (endDate.HasValue)
-                vouchers = vouchers.Where(v => v.DateUsed < endDate.Value.Date.AddDays(1)); 
+                vouchers = vouchers.Where(v => v.DateUsed < endDate.Value.Date.AddDays(1));
 
             var latest = vouchers
                 .OrderByDescending(v => v.DateUsed)
                 .Take(5)
-                .Select(v => new
+                .ToList()
+                .Select(v =>
                 {
-                    points = v.PointsDeducted,
-                    member = _context.Users
-                        .Where(u => u.MemberId == v.UserId)
-                        .Select(u => $"{u.FirstName} {u.LastName}")
-                        .FirstOrDefault() ?? "",
-                    voucherCode = v.VoucherCode,
-                    dateUsed = v.DateUsed
+                    var membership = _context.Memberships.FirstOrDefault(m => m.MemberId == v.UserId);
+                    var user = membership != null
+                        ? _context.Users.FirstOrDefault(u => u.UserId == membership.UserId)
+                        : null;
+
+                    return new
+                    {
+                        points = v.PointsDeducted,
+                        member = user != null ? $"{user.FirstName} {user.LastName}" : "",
+                        voucherCode = v.VoucherCode,
+                        dateUsed = v.DateUsed
+                    };
                 })
                 .ToList();
 
             return Ok(latest);
         }
+
 
         [HttpGet("redeemed-points")]
         public IActionResult GetRedeemedPoints(DateTime? start, DateTime? end)
@@ -177,7 +186,7 @@ namespace AmescoAPI.Controllers
                 vouchers = vouchers.Where(v => v.DateCreated >= start.Value);
 
             if (end.HasValue)
-                vouchers = vouchers.Where(v => v.DateCreated < end.Value.Date.AddDays(1)); 
+                vouchers = vouchers.Where(v => v.DateCreated < end.Value.Date.AddDays(1));
 
             decimal redeemedPoints = vouchers
                 .Where(v => v.IsUsed)
@@ -213,14 +222,12 @@ namespace AmescoAPI.Controllers
         {
             var vouchers = _context.Vouchers.AsQueryable();
 
-            // Filter by date range and used vouchers
             if (startDate.HasValue)
                 vouchers = vouchers.Where(v => v.DateUsed >= startDate.Value);
             if (endDate.HasValue)
                 vouchers = vouchers.Where(v => v.DateUsed < endDate.Value.Date.AddDays(1));
             vouchers = vouchers.Where(v => v.IsUsed);
 
-            // Group by UserId and sum PointsDeducted
             var topRedeemer = vouchers
                 .GroupBy(v => v.UserId)
                 .Select(g => new
@@ -234,8 +241,12 @@ namespace AmescoAPI.Controllers
             if (topRedeemer == null)
                 return Ok(new { name = "", pointsRedeemed = 0, profileImage = "No Image Found" });
 
-            // Get user info
-            var user = _context.Users.FirstOrDefault(u => u.MemberId == topRedeemer.UserId);
+            // ✅ FIX: Link UserId → Membership → User
+            var membership = _context.Memberships.FirstOrDefault(m => m.MemberId == topRedeemer.UserId);
+            var user = membership != null
+                ? _context.Users.FirstOrDefault(u => u.UserId == membership.UserId)
+                : null;
+
             if (user == null)
                 return Ok(new { name = "", pointsRedeemed = topRedeemer.PointsRedeemed, profileImage = "No Image Found" });
 
@@ -247,15 +258,11 @@ namespace AmescoAPI.Controllers
                 var optionsBuilder = new DbContextOptionsBuilder<ImagesDbContext>();
                 optionsBuilder.UseSqlServer(imagesConnectionString);
 
-                using (var imagesContext = new ImagesDbContext(optionsBuilder.Options))
-                {
-                    var userImage = imagesContext.UserImages
-                        .FirstOrDefault(ui => ui.MemberId == user.MemberId);
-                    if (userImage != null && userImage.ProfileImage != null && userImage.ProfileImage.Length > 0)
-                        profileImage = Convert.ToBase64String(userImage.ProfileImage);
-                    else
-                        profileImage = "No Image Found";
-                }
+                using var imagesContext = new ImagesDbContext(optionsBuilder.Options);
+                var userImage = imagesContext.UserImages
+                    .FirstOrDefault(ui => ui.MemberId == membership.MemberId);
+                if (userImage?.ProfileImage != null && userImage.ProfileImage.Length > 0)
+                    profileImage = Convert.ToBase64String(userImage.ProfileImage);
             }
             catch
             {

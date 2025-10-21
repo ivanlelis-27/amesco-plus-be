@@ -36,44 +36,24 @@ namespace AmescoAPI.Controllers
         [Authorize]
         public IActionResult Me()
         {
-            Console.WriteLine("--- JWT Claims Received ---");
-            foreach (var claim in User.Claims)
-            {
-                Console.WriteLine($"Type: {claim.Type}, Value: {claim.Value}");
-            }
-            Console.WriteLine("---------------------------");
-
             var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
 
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                Console.WriteLine("No 'sub'/'NameIdentifier' claim found. Returning Unauthorized.");
-                return Unauthorized();
-            }
+            if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
 
-            if (!int.TryParse(userIdClaim, out int userId))
-            {
-                Console.WriteLine($"Claim value not an int: {userIdClaim}. Returning Unauthorized.");
-                return Unauthorized();
-            }
-
-            // --- Token concurrency check ---
             var tokenFromRequest = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
             if (!_tokenConcurrency.IsTokenValidForUser(userId.ToString(), tokenFromRequest))
-            {
-                Console.WriteLine("Token concurrency check failed. Returning Unauthorized.");
                 return Unauthorized("Session expired or logged in elsewhere.");
-            }
-            // --- End token concurrency check ---
 
-            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
-            if (user == null)
-            {
-                Console.WriteLine($"No user found for ID: {userId}. Returning NotFound.");
-                return NotFound();
-            }
+            // 🔹 FIX: changed from u.Id → u.UserId
+            var user = _context.Users.FirstOrDefault(u => u.UserId == userId);
+            if (user == null) return NotFound();
 
-            var points = _context.Points.FirstOrDefault(p => p.UserId == user.MemberId);
+            // 🔹 FIX: fetch membership using UserId
+            var membership = _context.Memberships.FirstOrDefault(m => m.UserId == user.UserId);
+            if (membership == null) return NotFound("Membership not found.");
+
+            var points = _context.Points.FirstOrDefault(p => p.UserId == membership.MemberId);
 
             dynamic? userImage = null;
             byte[]? profileImageBytes = null;
@@ -83,10 +63,10 @@ namespace AmescoAPI.Controllers
             {
                 userImage = connection.QueryFirstOrDefault<dynamic>(
                     @"SELECT TOP 1 ProfileImage, ImageType
-            FROM UserImages 
-            WHERE MemberId = @MemberId 
-            ORDER BY UploadedAt DESC",
-                    new { MemberId = user.MemberId }
+              FROM UserImages 
+              WHERE MemberId = @MemberId 
+              ORDER BY UploadedAt DESC",
+                    new { MemberId = membership.MemberId }
                 );
 
                 if (userImage != null)
@@ -105,9 +85,9 @@ namespace AmescoAPI.Controllers
                 name = $"{user.FirstName} {user.LastName}",
                 email = user.Email,
                 mobile = user.Mobile,
-                memberId = user.MemberId,
+                memberId = membership.MemberId,
                 points = points?.PointsBalance ?? 0,
-                profileImage = profileImageBytes != null ? Convert.ToBase64String(profileImageBytes) : null,
+                profileImage = profileImageBase64,
                 profileImageType = profileImageBytes != null ? "png" : null
             });
         }
@@ -121,15 +101,14 @@ namespace AmescoAPI.Controllers
 
             if (!int.TryParse(userIdClaim, out int userId)) return BadRequest("Invalid user id in token.");
 
-            // token concurrency check (same as in Me())
             var tokenFromRequest = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
             if (!_tokenConcurrency.IsTokenValidForUser(userId.ToString(), tokenFromRequest))
                 return Unauthorized("Session expired or logged in elsewhere.");
 
-            var user = await _context.Users.FindAsync(userId);
+            // 🔹 FIX: changed from Id → UserId
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId);
             if (user == null) return NotFound("User not found.");
 
-            // Only allow editing FirstName, LastName and Mobile
             if (!string.IsNullOrWhiteSpace(dto.FirstName)) user.FirstName = dto.FirstName.Trim();
             if (!string.IsNullOrWhiteSpace(dto.LastName)) user.LastName = dto.LastName.Trim();
             if (!string.IsNullOrWhiteSpace(dto.Mobile)) user.Mobile = dto.Mobile.Trim();
@@ -138,7 +117,7 @@ namespace AmescoAPI.Controllers
 
             return Ok(new
             {
-                id = user.Id,
+                id = user.UserId, // 🔹 FIX
                 firstName = user.FirstName,
                 lastName = user.LastName,
                 mobile = user.Mobile
@@ -162,7 +141,6 @@ namespace AmescoAPI.Controllers
         [HttpGet]
         public IActionResult GetAll()
         {
-            // Fetch images for all users from AmescoImages DB first
             Dictionary<string, byte[]> images;
             using (var connection = new SqlConnection(_imagesConnectionString))
             {
@@ -172,22 +150,24 @@ namespace AmescoAPI.Controllers
                 ).ToDictionary(x => x.MemberId, x => x.ProfileImage);
             }
 
+            // 🔹 FIX: join with Memberships to get MemberId
             var users = _context.Users
+                .Include(u => u.Membership)
                 .Select(u => new
                 {
-                    u.Id,
+                    u.UserId,
                     u.FirstName,
                     u.LastName,
                     u.Email,
                     u.Mobile,
-                    u.MemberId,
                     u.CreatedAt,
+                    memberId = u.Membership.MemberId,
                     points = _context.Points
-                        .Where(p => p.UserId == u.MemberId)
+                        .Where(p => p.UserId == u.Membership.MemberId)
                         .Select(p => p.PointsBalance)
                         .FirstOrDefault(),
-                    profileImage = images.ContainsKey(u.MemberId)
-                        ? Convert.ToBase64String(images[u.MemberId])
+                    profileImage = images.ContainsKey(u.Membership.MemberId)
+                        ? Convert.ToBase64String(images[u.Membership.MemberId])
                         : null
                 })
                 .ToList();
@@ -212,7 +192,7 @@ namespace AmescoAPI.Controllers
             user.CreatedAt = DateTime.Now;
             _context.Users.Add(user);
             _context.SaveChanges();
-            return CreatedAtAction(nameof(Get), new { id = user.Id }, user);
+            return CreatedAtAction(nameof(Get), new { id = user.UserId }, user);
         }
 
         private bool IsValidEmail(string email)
@@ -228,19 +208,19 @@ namespace AmescoAPI.Controllers
         }
 
         [HttpPut("{id:int}")]
-         public IActionResult Update(int id, Users updated)
-         {
-             var user = _context.Users.Find(id);
-             if (user == null) return NotFound();
- 
-             user.FirstName = updated.FirstName;
-             user.LastName = updated.LastName;
-             user.Email = updated.Email;
-             user.Mobile = updated.Mobile;
- 
-             _context.SaveChanges();
-             return Ok(user);
-         }
+        public IActionResult Update(int id, Users updated)
+        {
+            var user = _context.Users.Find(id);
+            if (user == null) return NotFound();
+
+            user.FirstName = updated.FirstName;
+            user.LastName = updated.LastName;
+            user.Email = updated.Email;
+            user.Mobile = updated.Mobile;
+
+            _context.SaveChanges();
+            return Ok(user);
+        }
 
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
@@ -285,8 +265,8 @@ namespace AmescoAPI.Controllers
             public string NewPassword { get; set; } = string.Empty;
         }
 
-        [Authorize]
         [HttpGet("qr")]
+        [Authorize]
         public IActionResult GetUserQr()
         {
             var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -296,21 +276,24 @@ namespace AmescoAPI.Controllers
             if (!int.TryParse(userIdClaim, out int userId))
                 return BadRequest("Invalid user ID");
 
-            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            // 🔹 FIX: changed Id → UserId
+            var user = _context.Users.FirstOrDefault(u => u.UserId == userId);
             if (user == null)
                 return NotFound("User not found");
 
-            // Get series number from MemberId
-            string series = user.MemberId.Contains('-') ? user.MemberId.Split('-').Last() : "";
+            var membership = _context.Memberships.FirstOrDefault(m => m.UserId == user.UserId);
+            if (membership == null)
+                return NotFound("Membership not found.");
+
+            string series = membership.MemberId.Contains('-') ? membership.MemberId.Split('-').Last() : "";
             string fullName = $"{user.FirstName} {user.LastName}";
-            var points = _context.Points.FirstOrDefault(p => p.UserId == user.MemberId);
+            var points = _context.Points.FirstOrDefault(p => p.UserId == membership.MemberId);
             decimal pointsBalance = points?.PointsBalance ?? 0;
 
-            // Build QR payload 
             string qrPayload = $"Series: {series}\n" +
-                              $"Name: {fullName}\n" +
-                              $"Email: {user.Email}\n" +
-                              $"PointsBalance: {pointsBalance}";
+                               $"Name: {fullName}\n" +
+                               $"Email: {user.Email}\n" +
+                               $"PointsBalance: {pointsBalance}";
 
             using var qrGenerator = new QRCodeGenerator();
             using var qrData = qrGenerator.CreateQrCode(qrPayload, QRCodeGenerator.ECCLevel.M);
@@ -320,7 +303,6 @@ namespace AmescoAPI.Controllers
             var base64Qr = Convert.ToBase64String(qrBytes);
             return Ok(new { qrImage = base64Qr });
         }
-
 
 
         [Authorize]
@@ -341,6 +323,10 @@ namespace AmescoAPI.Controllers
             if (user == null)
                 return NotFound("User not found.");
 
+            var membership = await _context.Memberships.FirstOrDefaultAsync(m => m.UserId == user.UserId);
+            if (membership == null)
+                return NotFound("Membership not found for this user.");
+
             using var ms = new MemoryStream();
             await image.CopyToAsync(ms);
             var imageBytes = ms.ToArray();
@@ -350,10 +336,10 @@ namespace AmescoAPI.Controllers
             using var connection = new SqlConnection(_imagesConnectionString);
             connection.Open();
 
-            // Check if a row already exists for this MemberId
+            // ✅ Use membership.MemberId safely now
             var exists = await connection.QueryFirstOrDefaultAsync<int>(
                 "SELECT COUNT(1) FROM UserImages WHERE MemberId = @MemberId",
-                new { MemberId = user.MemberId }
+                new { MemberId = membership.MemberId }
             );
 
             if (exists > 0)
@@ -370,7 +356,7 @@ namespace AmescoAPI.Controllers
                 {
                     ProfileImage = imageBytes,
                     ImageType = imageType,
-                    MemberId = user.MemberId
+                    MemberId = membership.MemberId
                 });
             }
             else
@@ -382,7 +368,7 @@ namespace AmescoAPI.Controllers
 
                 await connection.ExecuteAsync(insertQuery, new
                 {
-                    MemberId = user.MemberId,
+                    MemberId = membership.MemberId,
                     ProfileImage = imageBytes,
                     ImageType = imageType
                 });

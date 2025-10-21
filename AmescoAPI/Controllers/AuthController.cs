@@ -39,13 +39,13 @@ namespace AmescoAPI.Controllers
 
             int lastSuffix = 0;
 
-            if (_context.Users.Any())
+            if (_context.Memberships.Any())
             {
-                var suffixes = _context.Users
-                    .AsEnumerable() 
-                    .Select(u =>
+                var suffixes = _context.Memberships
+                    .AsEnumerable()
+                    .Select(m =>
                     {
-                        var parts = u.MemberId.Split('-');
+                        var parts = m.MemberId.Split('-');
                         return parts.Length > 1 && int.TryParse(parts[1], out int suffix)
                             ? suffix
                             : 0;
@@ -71,9 +71,6 @@ namespace AmescoAPI.Controllers
             if (_context.Users.Any(u => u.Email == request.Email))
                 return BadRequest("Email already registered.");
 
-            if (string.IsNullOrWhiteSpace(request.MemberId))
-                return BadRequest("MemberId is required.");
-
             var user = new Users
             {
                 Email = request.Email,
@@ -82,22 +79,40 @@ namespace AmescoAPI.Controllers
                 LastName = request.LastName,
                 Mobile = request.Mobile,
                 CreatedAt = DateTime.Now,
-                MemberId = request.MemberId
             };
 
             _context.Users.Add(user);
             _context.SaveChanges();
 
+            var memberId = string.IsNullOrWhiteSpace(request.MemberId)
+                ? GenerateMemberId()
+                : request.MemberId;
+
+            var membership = new Memberships
+            {
+                MemberId = memberId,
+                UserId = user.UserId
+            };
+
+            _context.Memberships.Add(membership);
+            _context.SaveChanges();
+
             var points = new Points
             {
-                UserId = user.MemberId,
+                UserId = memberId,
                 PointsBalance = 0,
                 UpdatedAt = DateTime.Now
             };
+
             _context.Points.Add(points);
             _context.SaveChanges();
 
-            return Ok(new { message = "Registration successful!" });
+            return Ok(new
+            {
+                message = "Registration successful!",
+                userId = user.UserId,
+                memberId
+            });
         }
 
         [HttpGet("generate-memberid")]
@@ -137,22 +152,35 @@ namespace AmescoAPI.Controllers
                     LastName = request.LastName,
                     Mobile = request.Mobile,
                     CreatedAt = DateTime.Now,
-                    MemberId = request.MemberId
                 };
 
                 _context.Users.Add(user);
                 _context.SaveChanges();
 
+                // Create MemberId for membership
+                var memberId = string.IsNullOrWhiteSpace(request.MemberId)
+                    ? GenerateMemberId()
+                    : request.MemberId;
+
+                // Create Membership entry
+                var membership = new Memberships
+                {
+                    MemberId = memberId,
+                    UserId = user.UserId
+                };
+                _context.Memberships.Add(membership);
+                _context.SaveChanges();
+
                 var points = new Points
                 {
-                    UserId = user.MemberId,
+                    UserId = membership.MemberId,
                     PointsBalance = 0,
                     UpdatedAt = DateTime.Now
                 };
                 _context.Points.Add(points);
                 _context.SaveChanges();
 
-                createdUsers.Add(new { user.Id, user.Email, user.MemberId });
+                createdUsers.Add(new { user.UserId, user.Email, membership.MemberId });
             }
 
             return Ok(new { count = createdUsers.Count, users = createdUsers });
@@ -167,30 +195,37 @@ namespace AmescoAPI.Controllers
             if (!VerifyPasswordAndRehash(user, request.Password))
                 return BadRequest("Invalid password.");
 
+            var membership = _context.Memberships.FirstOrDefault(m => m.UserId == user.UserId);
+            var memberId = membership?.MemberId ?? "N/A";
+
             // generate a compact server session id
             var sessionId = TokenUtils.GenerateTokenUrlSafe(24);
 
             var token = TokenUtils.GenerateJwtToken(
-                user.Id.ToString(),
+                user.UserId.ToString(),
                 user.Email,
                 user.FirstName,
                 user.LastName,
                 user.Mobile,
-                user.MemberId,
+                memberId,
                 this.HttpContext.RequestServices.GetService<IConfiguration>(),
-                sessionId // embed session id in token
+                sessionId
             );
 
-            // store token and session id (overwrites previous session -> forces previous session to be logged out)
-            user.CurrentJwtToken = token;
-            user.CurrentSessionId = sessionId;
+            var session = new UserSessions
+            {
+                SessionId = sessionId,
+                UserId = user.UserId,
+                JwtToken = token
+            };
+            _context.UserSessions.Add(session);
             _context.SaveChanges();
 
             Console.WriteLine($"JWT issued for user {user.Email}: {token}");
             return Ok(new { message = "Login successful!", token, sessionId });
         }
 
-        
+
         [Authorize]
         [HttpGet("session-status")]
         public IActionResult SessionStatus()
@@ -217,14 +252,16 @@ namespace AmescoAPI.Controllers
             if (!int.TryParse(userIdClaim, out int userId))
                 return BadRequest("Invalid user ID");
 
-            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            var user = _context.Users.FirstOrDefault(u => u.UserId == userId);
             if (user == null)
                 return NotFound("User not found");
 
-            user.CurrentJwtToken = null; // Invalidate token
-            user.CurrentSessionId = null; // Clear session id
-            _context.SaveChanges();
-
+            var sessions = _context.UserSessions.Where(s => s.UserId == userId).ToList();
+            if (sessions.Any())
+            {
+                _context.UserSessions.RemoveRange(sessions);
+                _context.SaveChanges();
+            }
             return Ok(new { message = "Logged out successfully." });
         }
 
@@ -302,25 +339,41 @@ namespace AmescoAPI.Controllers
             if (!_tokenConcurrency.IsTokenValidForUser(userId.ToString(), tokenFromRequest))
                 return Unauthorized("Session expired or logged in elsewhere.");
 
-            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            var user = _context.Users.FirstOrDefault(u => u.UserId == userId);
             if (user == null)
                 return NotFound("User not found");
+
+            // ✅ ADDED: get the user's membership record so we can access MemberId
+            var membership = _context.Memberships.FirstOrDefault(m => m.UserId == userId);
+            if (membership == null)
+                return NotFound("Membership not found for user.");
 
             using var tx = _context.Database.BeginTransaction();
             try
             {
-                // remove dependent Points rows first (match Points.UserId to Users.MemberId)
-                var points = _context.Points.Where(p => p.UserId == user.MemberId).ToList();
+                // ✅ FIXED: now that we have membership, we can delete points tied to MemberId
+                var points = _context.Points.Where(p => p.UserId == membership.MemberId).ToList();
                 if (points.Any())
                 {
                     _context.Points.RemoveRange(points);
                 }
 
+                // ✅ also remove any user sessions if you want a full cleanup
+                var sessions = _context.UserSessions.Where(s => s.UserId == userId).ToList();
+                if (sessions.Any())
+                {
+                    _context.UserSessions.RemoveRange(sessions);
+                }
+
+                // ✅ remove membership itself
+                _context.Memberships.Remove(membership);
+
+                // ✅ finally remove the user
                 _context.Users.Remove(user);
                 _context.SaveChanges();
 
                 tx.Commit();
-                Console.WriteLine($"User deleted: {user.Id}, {user.Email}");
+                Console.WriteLine($"User deleted: {user.UserId}, {user.Email}");
                 return Ok(new { message = "Account deleted successfully." });
             }
             catch (Exception ex)

@@ -12,16 +12,20 @@ namespace AmescoAPI.Services
             _context = context;
         }
 
+        // ✅ Check validity of JWT token via UserSessions table
         public bool IsTokenValidForUser(string userId, string token)
         {
-            var user = _context.Users.FirstOrDefault(u => u.Id.ToString() == userId);
-            return user != null && user.CurrentJwtToken == token;
+            var session = _context.UserSessions
+                .FirstOrDefault(s => s.UserId.ToString() == userId && s.JwtToken == token);
+            return session != null;
         }
 
+        // ✅ Check validity of SessionId via UserSessions table
         public bool IsSessionValidForUser(string userId, string sessionId)
         {
-            var user = _context.Users.FirstOrDefault(u => u.Id.ToString() == userId);
-            return user != null && !string.IsNullOrEmpty(user.CurrentSessionId) && user.CurrentSessionId == sessionId;
+            var session = _context.UserSessions
+                .FirstOrDefault(s => s.UserId.ToString() == userId && s.SessionId == sessionId);
+            return session != null;
         }
     }
 }

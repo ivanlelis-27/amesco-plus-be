@@ -94,11 +94,12 @@ namespace AmescoAPI.Controllers
                     transactionId = t.TransactionId,
                     dateIssued = t.DateIssued,
                     earnedPoints = t.EarnedPoints,
-                    memberId = t.UserId,
-                    userName = _context.Users
-                        .Where(u => u.MemberId == t.UserId)
-                        .Select(u => u.FirstName + " " + u.LastName)
-                        .FirstOrDefault(),
+                    memberId = t.UserId, // this is actually the MemberId
+                    userName = (from m in _context.Memberships
+                                join u in _context.Users on m.UserId equals u.UserId
+                                where m.MemberId == t.UserId
+                                select u.FirstName + " " + u.LastName)
+                                .FirstOrDefault(),
                     branchName = _context.Branches
                         .Where(b => b.BranchID == t.BranchId)
                         .Select(b => b.BranchName)
@@ -111,6 +112,7 @@ namespace AmescoAPI.Controllers
 
             return Ok(result);
         }
+
 
         [HttpGet("my-transactions")]
         public IActionResult GetMyTransactions([FromQuery] string memberId)
@@ -155,9 +157,9 @@ namespace AmescoAPI.Controllers
                 transactions = transactions.Where(t => t.DateIssued >= startDate.Value);
 
             if (endDate.HasValue)
-                transactions = transactions.Where(t => t.DateIssued < endDate.Value.Date.AddDays(1)); 
+                transactions = transactions.Where(t => t.DateIssued < endDate.Value.Date.AddDays(1));
 
-            // Group transactions by UserId and sum EarnedPoints
+            // Group transactions by UserId (which is actually MemberId)
             var userPoints = transactions
                 .GroupBy(t => t.UserId)
                 .Select(g => new
@@ -169,16 +171,19 @@ namespace AmescoAPI.Controllers
                 .Take(10)
                 .ToList();
 
-            // Join with Users table to get MemberId, FullName, and Email
+            // Join with Memberships and Users to get MemberId, FullName, and Email
             var ranking = userPoints
                 .Select((up, index) =>
                 {
-                    var user = _context.Users.FirstOrDefault(u => u.MemberId == up.UserId);
+                    var membership = _context.Memberships.FirstOrDefault(m => m.MemberId == up.UserId);
+                    var user = membership != null
+                        ? _context.Users.FirstOrDefault(u => u.UserId == membership.UserId)
+                        : null;
+
                     return new
                     {
                         rank = index + 1,
-                        userId = up.UserId,
-                        memberId = user?.MemberId ?? "",
+                        memberId = membership?.MemberId ?? "",
                         fullName = user != null ? $"{user.FirstName} {user.LastName}" : "",
                         email = user?.Email ?? "",
                         totalEarnedPoints = up.TotalEarnedPoints
@@ -186,8 +191,10 @@ namespace AmescoAPI.Controllers
                 })
                 .ToList();
 
+            // ✅ Add this line to return your response
             return Ok(ranking);
         }
+
 
         [HttpGet("total-earned-points")]
         public IActionResult GetTotalEarnedPoints()
